@@ -221,13 +221,14 @@ static inline bool _load_boards(std::list<SourceLine> &lines,
 								){
 	unsigned id = boards.size();
 	std::list<SourceLine> cur_board_lines;
+	bool is_in_board = true;
 	// create new board (MB)
 	boards.resize(boards.size() + 1);
 	boards[id].full_name = _make_full_name(filename, 0, "MB");
 	boards[id].short_name = "MB";
 
 	for(auto itr = lines.begin(); itr != lines.end(); ++itr){
-		if(itr->is_include() || (itr->get_source()[0] == ':')){
+		if(is_in_board && (itr->is_include() || (itr->get_source()[0] == ':'))){
 			// end current board..
 			if(!_load_board(cur_board_lines, boards[id]))
 				return false;
@@ -240,6 +241,7 @@ static inline bool _load_boards(std::list<SourceLine> &lines,
 					break;
 				}
 			}
+			is_in_board = false;
 		}
 		if(itr->is_include()){
 			// load included file
@@ -274,7 +276,8 @@ static inline bool _load_boards(std::list<SourceLine> &lines,
 			}
 			boards[id].short_name = short_name;
 			boards[id].full_name = _make_full_name(filename, itr->get_line_number(), short_name);
-		}else{
+			is_in_board = true;
+		}else if(is_in_board){
 			std::string trimmed = itr->get_stripped();
 			trim_left(trimmed);
 			if(trimmed != "")
@@ -282,18 +285,20 @@ static inline bool _load_boards(std::list<SourceLine> &lines,
 		}
 	}
 	// end last board
-	if(!_load_board(cur_board_lines, boards[id]))
-		return false;
-	sources[id] = cur_board_lines;
-	self_ids[boards[id].actual_name] = id;
-	cur_board_lines.clear();
-	for(const auto &entry : include_ids){
-		if(_names_equivalent(boards[id].short_name, entry.first)){
-			include_ids.erase(entry.first);
-			break;
+	if(is_in_board){
+		if(!_load_board(cur_board_lines, boards[id]))
+			return false;
+		sources[id] = cur_board_lines;
+		self_ids[boards[id].actual_name] = id;
+		cur_board_lines.clear();
+		for(const auto &entry : include_ids){
+			if(_names_equivalent(boards[id].short_name, entry.first)){
+				include_ids.erase(entry.first);
+				break;
+			}
 		}
 	}
-
+	
 	return true;
 }
 
