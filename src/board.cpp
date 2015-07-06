@@ -332,7 +332,7 @@ void Board::initialize(){
 			break;
 		}
 	}
-	length = std::max(1, std::max(highestInput, highestOutput));
+	length = std::max(1, std::max(highestInput, highestOutput) + 1);
 	// set actual_name
 	actual_name = "";
 	do actual_name += short_name; while(actual_name.length() < 2 * length);
