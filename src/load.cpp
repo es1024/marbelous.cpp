@@ -69,7 +69,7 @@ static inline bool _names_equivalent(const std::string &name1, const std::string
 		sbeg = name2.begin();
 		send = name2.end();
 		lbeg = name1.begin();
-		send = name1.end();
+		lend = name1.end();
 	}
 
 	std::string::const_iterator sitr = sbeg, litr = lbeg;
