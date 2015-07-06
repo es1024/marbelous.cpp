@@ -28,7 +28,8 @@ static inline bool _load_boards(std::list<SourceLine> &lines,
 								std::vector<Board> &boards, // global
 								std::map<std::string, unsigned> &self_ids, // lookup for this file's boards
 								std::map<std::string, unsigned> &include_ids, // lookup for included file's boards
-								std::map<unsigned, std::list<SourceLine>> &sources // sources to process
+								std::map<unsigned, std::list<SourceLine>> &sources, // sources to process
+								std::string filename
 								);
 static inline bool _resolve_board_calls(std::vector<Board> &boards,
 										const std::map<unsigned, std::list<SourceLine>> &board_sources,
@@ -215,13 +216,14 @@ static inline bool _load_boards(std::list<SourceLine> &lines,
 								std::vector<Board> &boards, // global
 								std::map<std::string, unsigned> &self_ids, // lookup for this file's boards
 								std::map<std::string, unsigned> &include_ids, // lookup for included file's boards
-								std::map<unsigned, std::list<SourceLine>> &sources // sources to process
+								std::map<unsigned, std::list<SourceLine>> &sources, // sources to process
+								std::string filename
 								){
 	unsigned id = boards.size();
 	std::list<SourceLine> cur_board_lines;
 	// create new board (MB)
 	boards.resize(boards.size() + 1);
-	boards[id].full_name = _make_full_name(lines.front().get_file_name(), 0, "MB");
+	boards[id].full_name = _make_full_name(filename, 0, "MB");
 	boards[id].short_name = "MB";
 
 	for(auto itr = lines.begin(); itr != lines.end(); ++itr){
@@ -271,7 +273,7 @@ static inline bool _load_boards(std::list<SourceLine> &lines,
 				return false;
 			}
 			boards[id].short_name = short_name;
-			boards[id].full_name = _make_full_name(itr->get_file_name(), itr->get_line_number(), short_name);
+			boards[id].full_name = _make_full_name(filename, itr->get_line_number(), short_name);
 		}else{
 			std::string trimmed = itr->get_stripped();
 			trim_left(trimmed);
@@ -371,7 +373,7 @@ bool load_mbl_file(std::string file,
 
 	if(!_load_file(file, source)) return false;
 	if(!_strip_blank_lines(source)) return false;
-	if(!_load_boards(source, boards, lookup, include_lookup, board_sources)) return false;
+	if(!_load_boards(source, boards, lookup, include_lookup, board_sources, file)) return false;
 	if(!_resolve_board_calls(boards, board_sources, lookup, include_lookup)) return false;
 
 	return true;
