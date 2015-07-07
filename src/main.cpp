@@ -19,7 +19,9 @@ int main(int argc, char *argv[]){
 	if(load_mbl_file(argv[1], boards, lookup)){
 		// todo: boards with input
 		BoardCall bc{&boards[lookup["MB"]], 0, 0};
-		bc.call();
+		uint8_t inputs[36];
+		uint16_t outputs[36], output_left, output_right;
+		bc.call(inputs, outputs, output_left, output_right);
 		std::puts("\nProgram finished.");
 	}
 	prepare_io(false);

@@ -15,47 +15,43 @@ struct BoardCall{
 	BoardCall() = default;
 	BoardCall(Board *board, uint16_t x, uint16_t y);
 
-	void call();
+	// inputs: must be at least the length of the board; fill with anything if unused
+	// outputs, left_output, right_output: will be filled with 0x**XX if used (** nonzero)
+	static void call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], uint16_t *output_left, uint16_t *output_right);
 
+	inline void call(uint8_t inputs[], uint16_t outputs[], uint16_t &output_left, uint16_t &output_right) const {
+		BoardCall::call(this, inputs, outputs, &output_left, &output_right);
+	}
+	
 	Board *board;
 	uint16_t x, y; // location of first cell
-	std::vector<uint8_t> inputs = std::vector<uint8_t>(36);
-	std::vector<uint8_t> outputs = std::vector<uint8_t>(36);
-	std::vector<bool> inputs_filled = std::vector<bool>(36);
-	std::vector<bool> outputs_filled = std::vector<bool>(36);
-	uint8_t left{0}, right{0};
-	bool left_output{false}, right_output{false};
 	private:
-		// internal states for when the board is running
-		// _outputs_filled and _*_output are true when output is filled or doesn't exist
-		// outputs_filled and *_output are not true when the output does not exist
-		bool _marbles_moved{false}, _terminator_reached{false};
-		std::vector<bool> _outputs_filled = std::vector<bool>(36); // will be true if output doesn't exist
-		bool _left_output{false}, _right_output{false};
-		std::vector<uint8_t> _stdout;
-		std::vector<bool> _stdout_filled;
+		struct RunState{
+			// internal states for when the board is running + not compiled
+			// _outputs_filled and _*_output are true when output is filled or doesn't exist
+			// outputs_filled and *_output are not true when the output does not exist
+			bool marbles_moved = false, terminator_reached = false;
+			std::vector<bool> outputs_filled = std::vector<bool>(36);
+			bool left_filled = false, right_filled = false;
+			std::vector<uint16_t> stdout_values;
 
-		void set_marble(std::vector<uint8_t> &next_marbles,
-						std::vector<bool> &next_filled,
-						const Board *board,
-						uint32_t loc,
-						int32_t x_disp,
-						int32_t y_disp, 
-						uint8_t value);
-		void process_synchronisers(const std::vector<uint8_t> &cur_marbles,
-								   std::vector<uint8_t> &next_marbles,
-								   const std::vector<bool> &cur_filled,
-								   std::vector<bool> &next_filled);
-		void process_boardcalls(const std::vector<uint8_t> &cur_marbles,
-								std::vector<uint8_t> &next_marbles,
-								const std::vector<bool> &cur_filled,
-								std::vector<bool> &next_filled);
-		void process_cell(uint16_t x,
-						  uint16_t y,
-						  uint8_t value,
-						  const Cell &cell,
-						  std::vector<uint8_t> &next_marbles,
-						  std::vector<bool> &next_filled);
+			std::vector<uint16_t> cur_marbles;
+			std::vector<uint16_t> next_marbles;
+
+			const BoardCall *bc;
+			
+			void set_marble(uint32_t loc,
+			                int32_t x_disp,
+			                int32_t y_disp, 
+			                uint16_t value);
+			void process_synchronisers();
+			void process_boardcalls();
+			void process_cell(uint16_t x,
+			                  uint16_t y,
+			                  const Cell &cell);
+			void copy_output_helper(uint16_t &output,
+			                        const std::forward_list<uint32_t> &output_locs);
+		};
 };
 
 struct Board{
