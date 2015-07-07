@@ -317,7 +317,7 @@ static inline bool _resolve_board_calls(std::vector<Board> &boards,
 			// collect consecutive DV_BOARDs into call_text
 			std::string call_text = "";
 			while(x <= board.width){
-				Device type;
+				Device type = DV_BLANK;
 				if(x != board.width) type = board.cells[board.index(x, y)].device;
 				if((x == board.width || type != DV_BOARD) && start != -1){
 					// consecutive boards ended at last cell..
