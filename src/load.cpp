@@ -354,6 +354,7 @@ static inline bool _resolve_board_calls(std::vector<Board> &boards,
 							return false;
 						}
 					}
+					start = -1;
 				}else if(type == DV_BOARD){
 					if(start == -1)
 						start = x;
