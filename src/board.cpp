@@ -313,7 +313,7 @@ void BoardCall::RunState::process_cell(uint16_t x,
 			marbles_moved = true;
 		break;
 		case DV_BIT_CHECKER:
-			set_marble(loc, 0, +1, value & (1 << cell.value));
+			set_marble(loc, 0, +1, !!(value & (1 << cell.value)));
 			marbles_moved = true;
 		break;
 		case DV_LEFT_BIT_SHIFTER:
@@ -351,12 +351,10 @@ void BoardCall::RunState::process_cell(uint16_t x,
 			terminator_reached |= true;
 		break;
 		case DV_RANDOM:
-			if(cell.value == 253 && value != 0) // ?? device
-				set_marble(loc, 0, +1, std::rand() % value);
-			else if(cell.value == 0 || (cell.value == 253 && value == 0)) // ?0 device
-				set_marble(loc, 0, +1, 0);
+			if(cell.value == 253) // ?? device
+				set_marble(loc, 0, +1, std::rand() % (value + 1u));
 			else // ?n device
-				set_marble(loc, 0, +1, std::rand() % cell.value);
+				set_marble(loc, 0, +1, std::rand() % (cell.value + 1));
 			marbles_moved = true;
 		break;
 		case DV_BLANK:
