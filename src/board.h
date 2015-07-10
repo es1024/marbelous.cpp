@@ -62,7 +62,7 @@ struct Board{
 	std::vector<uint32_t> portals[36];
 
 	std::forward_list<uint32_t> output_left, output_right;
-	std::forward_list<BoardCall> boardCalls;
+	std::forward_list<BoardCall> board_calls;
 
 	uint16_t width, height;
 	uint8_t length;

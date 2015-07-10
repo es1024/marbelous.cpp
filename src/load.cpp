@@ -342,11 +342,11 @@ static inline bool _resolve_board_calls(std::vector<Board> &boards,
 						if(best_match != ""){
 							// create boardcall
 							call_text = call_text.substr(best_match.length());
-							board.boardCalls.push_front(BoardCall(&boards[best_match_id], start, y));
+							board.board_calls.push_front(BoardCall(&boards[best_match_id], start, y));
 							// assign board calls
 							uint16_t end = start + best_match.size()/2;
 							while(start < end){
-								board.cells[start++].board_call = &board.boardCalls.front();
+								board.cells[start++].board_call = &board.board_calls.front();
 							}
 						}else{
 							// no match found!
@@ -364,7 +364,7 @@ static inline bool _resolve_board_calls(std::vector<Board> &boards,
 		}
 		// reverse boardcalls list
 		// this allows for typical left-right top-bottom execution order
-		board.boardCalls.reverse();
+		board.board_calls.reverse();
 	}
 	return true;
 }

@@ -144,32 +144,32 @@ void BoardCall::RunState::process_synchronisers(){
 	}
 }
 void BoardCall::RunState::process_boardcalls(){
-	for(const auto &boardCall : bc->board->boardCalls){
-		uint32_t loc = bc->board->index(boardCall.x, boardCall.y);
+	for(const auto &board_call : bc->board->board_calls){
+		uint32_t loc = bc->board->index(board_call.x, board_call.y);
 		bool canCall = true;
-		for(int i = 0; i < boardCall.board->length; ++i)
-			if(!boardCall.board->inputs[i].empty() && is_empty_cell(cur_marbles[loc + i])){
+		for(int i = 0; i < board_call.board->length; ++i)
+			if(!board_call.board->inputs[i].empty() && is_empty_cell(cur_marbles[loc + i])){
 				canCall = false;
 				break;
 			}
 		if(!canCall){
-			for(uint32_t i = loc, end = loc + boardCall.board->length; i < end; ++i){
+			for(uint32_t i = loc, end = loc + board_call.board->length; i < end; ++i){
 				if(!is_empty_cell(cur_marbles[i]))
 					set_marble(i, 0, 0, cur_marbles[i]);
 			}
 		}else{
 			uint8_t inputs[36] = { };
 			uint16_t outputs[36] = { }, output_left = 0, output_right = 0;
-			for(int i = 0; i < boardCall.board->length; ++i)
+			for(int i = 0; i < board_call.board->length; ++i)
 				inputs[i] = cur_marbles[loc + i] & 0xFF;
-			boardCall.call(inputs, outputs, output_left, output_right);
-			for(int i = 0; i < boardCall.board->length; ++i)
+			board_call.call(inputs, outputs, output_left, output_right);
+			for(int i = 0; i < board_call.board->length; ++i)
 				if(!is_empty_cell(outputs[i]))
 					set_marble(loc + i, 0, 1, outputs[i]);
 			if(!is_empty_cell(output_left))
 				set_marble(loc, -1, 0, output_left);
 			if(!is_empty_cell(output_right))
-				set_marble(loc, boardCall.board->length, 0, output_right);
+				set_marble(loc, board_call.board->length, 0, output_right);
 			marbles_moved = true;
 		}
 	}
@@ -299,22 +299,22 @@ void BoardCall::RunState::process_cell(uint16_t x,
 
 void Board::initialize(){
 	// get highest number input used
-	int highestInput = 0;
+	int highest_input = 0;
 	for(int i = 36; i --> 0;){
 		if(!inputs[i].empty()){
-			highestInput = i;
+			highest_input = i;
 			break;
 		}
 	}
 	// get highest number output used
-	int highestOutput = 0;
+	int highest_output = 0;
 	for(int i = 36; i --> 0;){
 		if(!outputs[i].empty()){
-			highestOutput = i;
+			highest_output = i;
 			break;
 		}
 	}
-	length = std::max(1, std::max(highestInput, highestOutput) + 1);
+	length = std::max(1, std::max(highest_input, highest_output) + 1);
 	// set actual_name
 	actual_name = "";
 	do actual_name += short_name; while(actual_name.length() < 2 * length);
