@@ -154,10 +154,13 @@ void BoardCall::RunState::copy_output_helper(uint16_t &output,
 	output = 0;
 	if(!output_locs.empty()){
 		output = 0;
+		bool filled = false;
 		for(uint32_t loc : output_locs)
 			if(!is_empty_cell(cur_marbles[loc]))
-				output = (output + cur_marbles[loc]) & 0xFF;
+				output = (output + cur_marbles[loc]) & 0xFF, filled = true;
 		output |= 0xFF00;
+		if(!filled)
+			output = 0;
 	}
 }
 void BoardCall::RunState::set_marble(uint32_t loc,
