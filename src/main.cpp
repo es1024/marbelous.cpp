@@ -89,7 +89,20 @@ int main(int argc, char *argv[]){
 		}
 	}
 
+	// if verbose, stall printing to end..
+	if(options[OPT_VERBOSE].count() > 0){
+		stdout_write = _stdout_save;
+	}
+
 	bc.call(inputs, outputs, output_left, output_right);
+
+	if(options[OPT_VERBOSE].count() > 0){
+		std::fputs("Combined STDOUT: ", stdout);
+		for(uint8_t c : stdout_get_saved()){
+			_stdout_writehex(c);
+		}
+		std::fputc('\n', stdout);
+	}
 
 	prepare_io(false);
 

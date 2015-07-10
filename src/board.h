@@ -23,6 +23,8 @@ struct BoardCall{
 		BoardCall::call(this, inputs, outputs, &output_left, &output_right, indents);
 	}
 	
+	std::string call_with_stdout(uint8_t inputs[], uint16_t outputs[], uint16_t &output_left, uint16_t &output_right, int indents = 0) const;
+	
 	Board *board;
 	uint16_t x, y; // location of first cell
 	private:
@@ -37,6 +39,8 @@ struct BoardCall{
 
 			std::vector<uint16_t> cur_marbles;
 			std::vector<uint16_t> next_marbles;
+
+			std::vector<uint8_t> stdout_text; // only used for verbose modes
 
 			unsigned tick_number = 0;
 

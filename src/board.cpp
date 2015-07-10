@@ -39,8 +39,12 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 	                 && rs.left_filled && rs.right_filled;
 	// reserve space for stdout
 	rs.stdout_values.resize(bc->board->width);
-	if(options[OPT_VERBOSE].count() > 2)
+
+	int verbosity = options[OPT_VERBOSE].count();
+
+	if(verbosity > 2)
 		rs.output_board(indents);
+
 	// run to completion
 	do{
 		rs.marbles_moved = false;
@@ -61,15 +65,16 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 		// next -> cur
 		std::swap(rs.cur_marbles, rs.next_marbles);
 		std::fill(rs.next_marbles.begin(), rs.next_marbles.end(), 0);
-		// output stdout..
+		// output stdout
 		for(int i = 0; i < bc->board->width; ++i){
 			if(!is_empty_cell(rs.stdout_values[i])){
 				stdout_write(rs.stdout_values[i]);
+				rs.stdout_text.push_back(rs.stdout_values[i] & 255);
 				rs.stdout_values[i] = 0;
 			}
 		}
 		++rs.tick_number;
-		if(options[OPT_VERBOSE].count() > 2)
+		if(verbosity > 2)
 			rs.output_board(indents);
 	}while(
 		(!rs.terminator_reached) &&
@@ -84,6 +89,23 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 		rs.copy_output_helper(outputs[i], bc->board->outputs[i]);
 	rs.copy_output_helper(*output_left, bc->board->output_left);
 	rs.copy_output_helper(*output_right, bc->board->output_right);
+	if(verbosity > 1){
+		std::string indent = std::string(indents, ' ');
+		if(rs.stdout_text.size() > 0){
+			std::printf("%sstdout_write STDOUT:", indent.c_str());
+			for(uint8_t c : rs.stdout_text){
+				_stdout_writehex(c);
+			}
+			std::fputc('\n', stdout);
+		}
+		std::printf("%sExiting board %s on tick %u due to ", indent.c_str(), bc->board->short_name.c_str(), rs.tick_number);
+		if(rs.terminator_reached)
+			std::puts("a filled terminator (!!) device");
+		else if(!rs.marbles_moved)
+			std::puts("lack of activity");
+		else
+			std::puts("filled output devices");		
+	}
 }
 
 void BoardCall::RunState::output_board(int indents){
