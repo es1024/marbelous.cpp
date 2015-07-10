@@ -170,7 +170,18 @@ void BoardCall::RunState::set_marble(uint32_t loc,
 	uint16_t x, y;
 	y = loc / bc->board->width;
 	x = loc % bc->board->width;
-	if(x + x_disp >= bc->board->width || x + x_disp < 0) return;
+	if(x + x_disp >= bc->board->width || x + x_disp < 0){
+		if(options[OPT_CYLINDRICAL].last()->type() == OPT_TYPE_ENABLE){
+			if(x + x_disp >= bc->board->width){
+				x = 0;
+			}else{
+				x = bc->board->width - 1;
+			}
+			x_disp = 0;
+		}else{
+			return;
+		}
+	}
 	if(y + y_disp < 0){
 		emit_warning("Displacement of marble over top of board; this should never happen");
 		return;
