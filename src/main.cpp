@@ -70,19 +70,22 @@ int main(int argc, char *argv[]){
 
 	for(int i = 0; i <= highest_input; ++i){
 		if(!boards[0].inputs[i].empty()){
-			std::string opt = parse.nonOption(i);
-			unsigned value;
-			std::istringstream iss(opt);
-			iss >> value;
-			if(iss.fail()){
-				emit_error("Argument value " + opt + " is not an nonnegative integer");
-				return -5;
+			std::string opt = parse.nonOption(i + 1);
+			unsigned value = 0;
+			bool too_large = false;
+			for(auto c : opt){
+				if(std::isdigit(c)){
+					value = 10 * value + (c - '0');
+					if(value > 255)
+						too_large = true;
+				}else{
+					emit_error("Argument value " + opt + " is not a nonnegative integer");
+				}
 			}
-			if(value > 255){
+			if(too_large){
 				emit_warning("Argument value " + opt + " is larger than 255; using value mod 256");
-				value &= 255;
 			}
-			inputs[i] = value;
+			inputs[i] = value & 255;
 		}
 	}
 
