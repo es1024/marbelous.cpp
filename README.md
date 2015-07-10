@@ -22,9 +22,9 @@ The C++ interpreter has the following options:
 
 Option | Description
 ------ | ---------------
---help | display help information
--v[vv] | change verbosity level (default 0); add more v's to increase verbosity.
---enable-cylindrical, --disable-cylindrical | Enable or disable cylindrical boards (default disabled). If disabled, marbles falling off the side of the board are destroyed. If enabled, marbles falling off the side of the board reappear on the other side.
+&#8209;&#8209;help | display help information
+&#8209;v[vv] | change verbosity level (default 0); add more v's to increase verbosity.
+&#8209;&#8209;enable&#8209;cylindrical, &#8209;&#8209;disable&#8209;cylindrical | Enable or disable cylindrical boards (default disabled). If disabled, marbles falling off the side of the board are destroyed. If enabled, marbles falling off the side of the board reappear on the other side.
 
 ##### More information/Other interpreters
 [Python interpreter by sparr (first Marbelous interpreter)](https://github.com/marbelous-lang/marbelous.py)
