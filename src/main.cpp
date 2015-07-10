@@ -1,28 +1,94 @@
-#include "board.h"
-#include "io_functions.h"
-#include "load.h"
-
 #include <ctime>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include <map>
 #include <string>
+#include <sstream>
 #include <vector>
 
+#include "board.h"
+#include "emit.h"
+#include "io_functions.h"
+#include "load.h"
+#include "options.h"
+
+option::Option *options;
+
 int main(int argc, char *argv[]){
+	// process arguments
+	option::Stats stats(usage, argc - 1, argv + 1);
+	option::Option _options[stats.options_max], buffer[stats.buffer_max];
+	option::Parser parse(usage, argc - 1, argv + 1, _options, buffer);
+
+	options = _options;
+
+	if(parse.error())
+		return -1;
+	
+	if(options[OPT_HELP] || argc == 1){
+		option::printUsage(std::cout, usage);
+		return 0;
+	}
+
+	for(option::Option *opt = options[OPT_UNKNOWN]; opt; opt = opt->next())
+		emit_warning(std::string("Unknown option: ") + opt->name);
+
+	if(parse.nonOptionsCount() == 0){
+		emit_error("No input file");
+		return -2;
+	}
+
+	std::string filename = parse.nonOption(0);
+	// load
 	std::srand(std::time(nullptr));
 	prepare_io(true);
-	// parse options..
 	std::vector<Board> boards;
 	std::map<std::string, unsigned> lookup;
-	// todo: options...
-	if(load_mbl_file(argv[1], boards, lookup)){
-		// todo: boards with input
-		BoardCall bc{&boards[lookup["MB"]], 0, 0};
-		uint8_t inputs[36];
-		uint16_t outputs[36], output_left, output_right;
-		bc.call(inputs, outputs, output_left, output_right);
-		std::puts("\nProgram finished.");
+	if(!load_mbl_file(filename, boards, lookup)){
+		emit_error("Could not load file " + filename);
+		return -3;
 	}
+
+	// get highest input
+	int highest_input = 0;
+	for(int i = 36; i --> 0;){
+		if(!boards[0].inputs[i].empty()){
+			highest_input = i;
+			break;
+		}
+	}
+
+	// check arguments
+	if(parse.nonOptionsCount() != 2 + highest_input){ // filename + (highest_input + 1)
+		emit_error("Expected " + std::to_string(highest_input + 1) + " inputs, got " + std::to_string(parse.nonOptionsCount() - 1));
+		return -4;	
+	}
+	BoardCall bc{&boards[0], 0, 0};
+	uint8_t inputs[36] = { 0 };
+	uint16_t outputs[36], output_left, output_right;
+
+	for(int i = 0; i <= highest_input; ++i){
+		if(!boards[0].inputs[i].empty()){
+			std::string opt = parse.nonOption(i);
+			unsigned value;
+			std::istringstream iss(opt);
+			iss >> value;
+			if(iss.fail()){
+				emit_error("Argument value " + opt + " is not an nonnegative integer");
+				return -5;
+			}
+			if(value > 255){
+				emit_warning("Argument value " + opt + " is larger than 255; using value mod 256");
+				value &= 255;
+			}
+			inputs[i] = value;
+		}
+	}
+
+	bc.call(inputs, outputs, output_left, output_right);
+
 	prepare_io(false);
+
+	return (outputs[0] >> 8) ? outputs[0] & 0xFF : 0;
 }
