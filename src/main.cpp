@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
 	}
 
 	// get highest input
-	int highest_input = 0;
+	int highest_input = -1;
 	for(int i = 36; i --> 0;){
 		if(!boards[0].inputs[i].empty()){
 			highest_input = i;
