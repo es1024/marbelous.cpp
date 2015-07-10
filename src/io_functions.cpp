@@ -44,8 +44,13 @@ void prepare_io(bool init){
 	#endif
 }
 
+// pointers to allow changing function
+bool (*stdin_available)(void) = _stdin_available;
+uint8_t (*stdin_get)(void) = _stdin_get;
+void (*stdout_write)(uint8_t) = _stdout_write;
+
 // check if there is something to be read on stdin
-bool stdin_available(){
+bool _stdin_available(){
 	#if defined(UNIX)
 		struct pollfd fds;
 		fds.fd = 0; // stdin
@@ -56,7 +61,7 @@ bool stdin_available(){
 	#endif
 }
 
-uint8_t stdin_get(){
+uint8_t _stdin_get(){
 	int ch;
 	#if defined(UNIX)
 		ch = getchar();
@@ -66,7 +71,19 @@ uint8_t stdin_get(){
 	return static_cast<uint8_t>(ch);
 }
 
-void stdout_write(uint8_t value){
+void _stdout_write(uint8_t value){
 	putchar(value);
-	// std::printf("Output: %c (%d)\n", value, value);
+}
+
+static std::vector<uint8_t> stdout_save_vector;
+void _stdout_save(uint8_t value){
+	stdout_save_vector.push_back(value);
+}
+
+void _stdout_writehex(uint8_t value){
+	std::printf("0x%02X (%c) ", value, value);
+}
+
+const std::vector<uint8_t> &stdout_get_saved(){
+	return stdout_save_vector;
 }
