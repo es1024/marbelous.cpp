@@ -15,7 +15,7 @@ enum OptionsType{
 	OPT_TYPE_ENABLE,
 };
 const option::Descriptor usage[] = {
-	{OPT_UNKNOWN, 0, "", "", option::Arg::None, "Usage: marbelous [options] file\n"
+	{OPT_UNKNOWN, 0, "", "", option::Arg::None, "Usage: marbelous [options] file.mbl [arguments]\n"
 	                                            "Options: "},
 	{OPT_HELP, 0, "", "help", option::Arg::None, "  --help  \tDisplay this information"},
 	{OPT_VERBOSE, 0, "v", "", option::Arg::None, "  -v[vv]  \tSet verbosity level, default 0"},
