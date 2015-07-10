@@ -17,10 +17,10 @@ struct BoardCall{
 
 	// inputs: must be at least the length of the board; fill with anything if unused
 	// outputs, left_output, right_output: will be filled with 0x**XX if used (** nonzero)
-	static void call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], uint16_t *output_left, uint16_t *output_right);
+	static void call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], uint16_t *output_left, uint16_t *output_right, int indents = 0);
 
-	inline void call(uint8_t inputs[], uint16_t outputs[], uint16_t &output_left, uint16_t &output_right) const {
-		BoardCall::call(this, inputs, outputs, &output_left, &output_right);
+	inline void call(uint8_t inputs[], uint16_t outputs[], uint16_t &output_left, uint16_t &output_right, int indents = 0) const {
+		BoardCall::call(this, inputs, outputs, &output_left, &output_right, indents);
 	}
 	
 	Board *board;
@@ -38,14 +38,16 @@ struct BoardCall{
 			std::vector<uint16_t> cur_marbles;
 			std::vector<uint16_t> next_marbles;
 
+			unsigned tick_number = 0;
+
 			const BoardCall *bc;
-			
+			void output_board(int indents);
 			void set_marble(uint32_t loc,
 			                int32_t x_disp,
 			                int32_t y_disp, 
 			                uint16_t value);
 			void process_synchronisers();
-			void process_boardcalls();
+			void process_boardcalls(int indents);
 			void process_cell(uint16_t x,
 			                  uint16_t y,
 			                  const Cell &cell);

@@ -3,8 +3,10 @@
 #include "devices.h"
 #include "emit.h"
 #include "io_functions.h"
+#include "options.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <utility>
 
 BoardCall::BoardCall(Board *board, uint16_t x, uint16_t y): board(board), x(x), y(y){}
@@ -14,7 +16,8 @@ static inline bool is_empty_cell(uint16_t value){
 	return !(value & 0xFF00);
 }
 
-void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], uint16_t *output_left, uint16_t *output_right){
+void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], uint16_t *output_left, uint16_t *output_right, int indents){
+	std::printf("%d\n", options[OPT_VERBOSE].count());
 	// prepare runstate
 	RunState rs;
 	rs.bc = bc;
@@ -43,7 +46,7 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 	   	// movement through synchronisers and board calls cannot be 
 	   	// processed with only information about one marble
 		rs.process_synchronisers();
-		rs.process_boardcalls();
+		rs.process_boardcalls(indents);
 	   	// deal with all other marbles
 	   	for(uint16_t y = 0; y < bc->board->height; ++y){
 	   		for(uint16_t x = 0; x < bc->board->width; ++x){
@@ -64,6 +67,9 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 				rs.stdout_values[i] = 0;
 			}
 		}
+		++rs.tick_number;
+		if(options[OPT_VERBOSE].count() > 2)
+			rs.output_board(indents);
 	}while(
 		(!rs.terminator_reached) &&
 		(rs.marbles_moved) &&
@@ -77,6 +83,69 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 		rs.copy_output_helper(outputs[i], bc->board->outputs[i]);
 	rs.copy_output_helper(*output_left, bc->board->output_left);
 	rs.copy_output_helper(*output_right, bc->board->output_right);
+}
+
+void BoardCall::RunState::output_board(int indents){
+	std::string indent = std::string(' ', indents);
+	std::printf("%s:%s tick %u\n", indent.c_str(), bc->board->short_name.c_str(), tick_number);
+	for(int y = 0; y < bc->board->height; ++y){
+		std::fputs(indent.c_str(), stdout);
+		for(int x = 0; x < bc->board->width; ++x){
+			uint32_t loc = bc->board->index(x, y);
+			if(!is_empty_cell(cur_marbles[loc])){
+				std::printf("%02X ", cur_marbles[loc] & 255);
+			}else{
+				uint8_t raw_value = bc->board->cells[loc].value;
+				char value = '#';
+				if(bc->board->cells[loc].device != DV_BOARD){
+					if(raw_value < 10)
+						value = raw_value + '0';
+					else if(raw_value < 36)
+						value = (raw_value - 10) + 'A';
+					else if(raw_value == 253)
+						value = '?';
+					else if(raw_value == 254)
+						value = '>';
+					else if(raw_value == 255)
+						value = '<';
+				}
+				switch(bc->board->cells[loc].device){
+					case DV_LEFT_DEFLECTOR: std::fputs("// ", stdout); break;
+					case DV_RIGHT_DEFLECTOR: std::fputs("\\\\ ", stdout); break;
+					case DV_PORTAL: std::printf("@%c ", value); break;
+					case DV_SYNCHRONISER: std::printf("&%c ", value); break;
+					case DV_EQUALS: std::printf("=%c ", value); break;
+					case DV_GREATER_THAN: std::printf(">%c ", value); break;
+					case DV_LESS_THAN: std::printf("<%c ", value); break;
+					case DV_ADDER: std::printf("+%c ", value); break;
+					case DV_SUBTRACTOR: std::printf("-%c ", value); break;
+					case DV_INCREMENTOR: std::fputs("++ ", stdout); break;
+					case DV_DECREMENTOR: std::fputs("-- ", stdout); break;
+					case DV_BIT_CHECKER: std::printf("^%c ", value); break;
+					case DV_LEFT_BIT_SHIFTER: std::fputs("<< ", stdout); break;
+					case DV_RIGHT_BIT_SHIFTER: std::fputs(">> ", stdout); break;
+					case DV_BINARY_NOT: std::fputs("~~ ", stdout); break;
+					case DV_STDIN: std::fputs("]] ", stdout); break;
+					case DV_INPUT: std::printf("}%c ", value); break;
+					case DV_OUTPUT: std::printf("{%c ", value); break;
+					case DV_TRASH_BIN: std::fputs("\\/ ", stdout); break;
+					case DV_CLONER: std::fputs("/\\ ", stdout); break;
+					case DV_TERMINATOR: std::fputs("!! ", stdout); break;
+					case DV_RANDOM: std::printf("?%c ", value); break;
+					case DV_BOARD:{
+						BoardCall *b = bc->board->cells[loc].board_call;
+						int offset = x - b->x;
+						std::string fragment = b->board->actual_name.substr(2 * offset, 2);
+						std::printf("%s ", fragment.c_str());
+						break;
+					}
+					default: std::fputs(".. ", stdout); break;
+				}
+			}
+		}
+		std::fputc('\n', stdout);
+	}
+	std::fputc('\n', stdout);
 }
 
 void BoardCall::RunState::copy_output_helper(uint16_t &output,
@@ -143,7 +212,7 @@ void BoardCall::RunState::process_synchronisers(){
 		}
 	}
 }
-void BoardCall::RunState::process_boardcalls(){
+void BoardCall::RunState::process_boardcalls(int indents){
 	for(const auto &board_call : bc->board->board_calls){
 		uint32_t loc = bc->board->index(board_call.x, board_call.y);
 		bool canCall = true;
@@ -162,7 +231,7 @@ void BoardCall::RunState::process_boardcalls(){
 			uint16_t outputs[36] = { }, output_left = 0, output_right = 0;
 			for(int i = 0; i < board_call.board->length; ++i)
 				inputs[i] = cur_marbles[loc + i] & 0xFF;
-			board_call.call(inputs, outputs, output_left, output_right);
+			board_call.call(inputs, outputs, output_left, output_right, indents + 1);
 			for(int i = 0; i < board_call.board->length; ++i)
 				if(!is_empty_cell(outputs[i]))
 					set_marble(loc + i, 0, 1, outputs[i]);
@@ -278,7 +347,7 @@ void BoardCall::RunState::process_cell(uint16_t x,
 			terminator_reached |= true;
 		break;
 		case DV_RANDOM:
-			if(cell.value == 255) // ?? device
+			if(cell.value == 253) // ?? device
 				set_marble(loc, 0, +1, std::rand() % value);
 			else if(cell.value == 0) // ?0 device
 				set_marble(loc, 0, +1, 0);
