@@ -134,7 +134,7 @@ static inline void _process_cell(const std::string &cell, unsigned pos, Board &b
 					  else if(cell[1] == '>') device = DV_OUTPUT, value = 254; break;
 			case '!': if(cell[1] == '!') device = DV_TERMINATOR; break;
 			case '?': if(_is_base36(cell[1])) device = DV_RANDOM; 
-					  else if(cell[1] == '?') device = DV_RANDOM, value = 255; break;
+					  else if(cell[1] == '?') device = DV_RANDOM, value = 253; break;
 		}
 		if(device == DV_INPUT){
 			board.inputs[value].push_front(pos);
@@ -346,7 +346,7 @@ static inline bool _resolve_board_calls(std::vector<Board> &boards,
 							// assign board calls
 							uint16_t end = start + best_match.size()/2;
 							while(start < end){
-								board.cells[start++].board_call = &board.board_calls.front();
+								board.cells[board.index(start++, y)].board_call = &board.board_calls.front();
 							}
 						}else{
 							// no match found!
