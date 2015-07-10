@@ -347,9 +347,9 @@ void BoardCall::RunState::process_cell(uint16_t x,
 			terminator_reached |= true;
 		break;
 		case DV_RANDOM:
-			if(cell.value == 253) // ?? device
+			if(cell.value == 253 && value != 0) // ?? device
 				set_marble(loc, 0, +1, std::rand() % value);
-			else if(cell.value == 0) // ?0 device
+			else if(cell.value == 0 || (cell.value == 253 && value == 0)) // ?0 device
 				set_marble(loc, 0, +1, 0);
 			else // ?n device
 				set_marble(loc, 0, +1, std::rand() % cell.value);
