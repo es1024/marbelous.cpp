@@ -39,6 +39,8 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 	                 && rs.left_filled && rs.right_filled;
 	// reserve space for stdout
 	rs.stdout_values.resize(bc->board->width);
+	if(options[OPT_VERBOSE].count() > 2)
+		rs.output_board(indents);
 	// run to completion
 	do{
 		rs.marbles_moved = false;
@@ -85,7 +87,7 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 }
 
 void BoardCall::RunState::output_board(int indents){
-	std::string indent = std::string(' ', indents);
+	std::string indent = std::string(indents, ' ');
 	std::printf("%s:%s tick %u\n", indent.c_str(), bc->board->short_name.c_str(), tick_number);
 	for(int y = 0; y < bc->board->height; ++y){
 		std::fputs(indent.c_str(), stdout);
