@@ -17,7 +17,6 @@ static inline bool is_empty_cell(uint16_t value){
 }
 
 void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], uint16_t *output_left, uint16_t *output_right, int indents){
-	std::printf("%d\n", options[OPT_VERBOSE].count());
 	// prepare runstate
 	RunState rs;
 	rs.bc = bc;
