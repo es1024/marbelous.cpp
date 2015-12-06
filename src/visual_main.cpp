@@ -9,15 +9,13 @@
 
 #include <gtk/gtk.h>
 #include <cairo.h>
-#include <freetype/ftbitmap.h>
-#include <pango/pangocairo.h>
-#include <pango/pangoft2.h>
 
 #include "board.h"
 #include "emit.h"
 #include "io_functions.h"
 #include "load.h"
 #include "options.h"
+#include "surfaces.h"
 
 option::Option *options;
 
@@ -25,6 +23,7 @@ struct gobject {
 	int draw_area_width;
 	int draw_area_height;
 	Board *board;
+	cairo_surface_t *devices_surface, *printables_surface;
 };
 
 static gboolean on_draw_event(GtkWidget *, cairo_t *, gobject *);
@@ -114,6 +113,9 @@ int main(int argc, char *argv[]){
 	gobj.draw_area_width = std::max(700, 10 + 48 * boards[0].width);
 	gobj.draw_area_height = std::max(575, 10 + 48 * boards[0].height);
 	gobj.board = &boards[0];
+	gobj.devices_surface = create_devices_surface();
+	gobj.printables_surface = create_printables_surface();
+	// gobj.board_symbol
 
 	// GTK window
 	GtkWidget *window, *grid, *bwindow, *swindow, *cwindow, *viewport, *draw_area;
@@ -121,8 +123,9 @@ int main(int argc, char *argv[]){
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	grid = gtk_grid_new();
 	bwindow = gtk_scrolled_window_new(NULL, NULL);
+
 	// swindow = gtk_scrolled_window_new(NULL, NULL);
-	// cwindow = gtk_window_new(GTK_WINDOW_TOPLEVEL); // what
+	// cwindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	viewport = gtk_viewport_new(NULL, NULL);
 	draw_area = gtk_drawing_area_new();
 
@@ -160,34 +163,6 @@ int main(int argc, char *argv[]){
 	// return (outputs[0] >> 8) ? outputs[0] & 0xFF : 0;
 }
 
-static void draw_cell(cairo_t *cr, const Cell &cell, int x, int y){
-	switch(cell.device){
-		case DV_BLANK:
-			cairo_set_source_rgb(cr, 0, 0, 0);
-			cairo_set_line_width(cr, 0.5);
-
-			cairo_move_to(cr, x, y);
-			cairo_line_to(cr, x + 48, y + 48);
-
-			cairo_stroke(cr);
-		break;
-		// case DV_BOARD:
-			// if(board cal)
-			// cairo_set_source_rgb(cr, 0.2, 0.4, 0.3);
-			// cairo_set_line_width(cr, 2.0);
-
-		break;
-		default:
-			cairo_set_source_rgb(cr, 0.2, 0.4, 0.3);
-			cairo_set_line_width(cr, 2.0);
-
-			cairo_move_to(cr, x + 48, y);
-			cairo_line_to(cr, x, y + 48);
-		
-			cairo_stroke(cr);
-		break;
-	}
-}
 static gboolean on_draw_event(GtkWidget *, cairo_t *cr, gobject *gobj){
 	int w = gobj->board->width * 48, h = gobj->board->height * 48;
 	int offx = (gobj->draw_area_width - w)/2, offy = (gobj->draw_area_height - h)/2;
@@ -198,7 +173,7 @@ static gboolean on_draw_event(GtkWidget *, cairo_t *cr, gobject *gobj){
 	cairo_fill(cr);
 
 	// grid
-	cairo_set_source_rgb(cr, 1, 1, 100);
+	cairo_set_source_rgb(cr, 1, 1, 1);
 	cairo_set_line_width(cr, 0.5);
 	for(int x = 0; x <= gobj->board->width; ++x){
 		cairo_move_to(cr, offx + 48 * x, offy);
@@ -210,22 +185,26 @@ static gboolean on_draw_event(GtkWidget *, cairo_t *cr, gobject *gobj){
 	}
 	cairo_stroke(cr);
 
-	// chars
+	// devices
 	for(int y = 0; y < gobj->board->height; ++y){
 		for(int x = 0; x < gobj->board->width; ++x){
 			int index = gobj->board->index(x, y);
-			if(gobj->board->cells[index].device != DV_BOARD || gobj->board->cells[index].board_call->x == x)
-				draw_cell(cr, gobj->board->cells[index], offx + 48 * x, offy + 48 * y);
+			if(gobj->board->cells[index].device != DV_BOARD)
+				draw_device(cr, gobj->devices_surface, gobj->board->cells[index], offx + 48 * x, offy + 48 * y);
+			else{
+				int startx = gobj->board->cells[index].board_call->x;
+				std::string text = gobj->board->cells[index].board_call->board->actual_name;
+				draw_board_call_cell(cr, gobj->printables_surface, text.substr((x - startx) * 2, 2), offx + 48 * x, offy + 48 * y);
+				// draw box if first cell
+				if(startx == x){
+					cairo_rectangle(cr, offx + 48 * x + 1, offy + 48 * y + 1, 24 * text.length() - 1, 46);
+					cairo_set_source_rgb(cr, 1, 0.2, 0.5);
+					cairo_set_line_width(cr, 3);
+					cairo_stroke(cr);
+				}
+			}
 		}
 	}
 
-// cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(w));
-// cairo_set_source_rgb(cr, 1, 1, 1);
-// cairo_paint(cr);
-// cairo_set_source_rgb (cr, 0.42, 0.65, 0.80);
-// cairo_set_line_width (cr,6);
-// cairo_rectangle (cr, 3, 3, 100, 100);
-// cairo_stroke (cr); 
-// cairo_destroy(cr);
 	return FALSE;
 }

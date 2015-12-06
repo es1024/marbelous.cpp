@@ -1,10 +1,17 @@
 CXX = g++
 RM = rm -f
 
-SRCS = $(patsubst src/%main.cpp, , $(wildcard src/*.cpp))
-OBJS = $(patsubst src/%.cpp, obj/%.o, $(SRCS))
+SRCS = src/board.cpp src/cell.cpp src/devices.cpp src/emit.cpp \
+       src/io_functions.cpp src/load.cpp src/source_line.cpp
+CSRCS = src/main.cpp
+VSRCS = src/visual_main.cpp src/surfaces.cpp
 
-LIBS := $(shell pkg-config --cflags --libs gtk+-3.0)
+OBJS = $(patsubst src/%.cpp, obj/%.o, $(SRCS))
+COBJS = $(patsubst src/%.cpp, obj/%.o, $(CSRCS))
+VOBJS = $(patsubst src/%.cpp, obj/%.o, $(VSRCS))
+
+LIBS := $(shell pkg-config --cflags-only-other --libs gtk+-3.0 freetype2 pangoft2)
+INCLUDES := $(shell pkg-config --cflags-only-I --libs gtk+-3.0 freetype2 pangoft2)
 CXXFLAGS = -ggdb -Wall -std=c++11 -static-libstdc++
 
 ifeq ($(OS), Windows_NT)
@@ -22,16 +29,16 @@ endif
 
 all: bin/marbelous$(BIN_SUFFIX) bin/vmarbelous$(BIN_SUFFIX)
 
-bin/marbelous$(BIN_SUFFIX): $(OBJS) obj/main.o
+bin/marbelous$(BIN_SUFFIX): $(OBJS) $(COBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-bin/vmarbelous$(BIN_SUFFIX): $(OBJS) obj/visual_main.o
+bin/vmarbelous$(BIN_SUFFIX): $(OBJS) $(VOBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBS)
 
 obj/%.o: src/%.cpp
-	$(CXX) $(CXXFLAGS) -c -o $@ $^ $(LIBS)
+	$(CXX) $(CXXFLAGS) -c -o $@ $^ $(INCLUDES)
 
 clean:
-	$(RM) obj/*
-	$(RM) bin/*
+	$(RM) obj/*.o
+	$(RM) bin/*$(BIN_SUFFIX)
 
