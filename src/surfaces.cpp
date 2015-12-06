@@ -85,7 +85,7 @@ cairo_surface_t *create_devices_surface(){
 </span></span>";
 	return create_text_surface(512, 256, text);
 }
-#include <iostream>
+
 cairo_surface_t *create_printables_surface(){
 	const char *text = 
 "<span font='Courier New 24' font_weight='heavy'><span foreground='white'>\
@@ -181,7 +181,6 @@ void draw_board_call_cell(cairo_t *cr, cairo_surface_t *surf, std::string text, 
 	int ei = ((32 <= text[1] && text[1] < 127) ? (text[1] - 32 + 99) : 0);
 	int ix = 57 * (i % 9), iy = 36 * (i / 9);
 	int eix = 57 * (ei % 9), eiy = 36 * (ei / 9);
-	std::cout << text << i << " " << ei-99 << std::endl;
 
 	cairo_surface_t *ssurf = cairo_surface_create_for_rectangle(surf, ix, iy, 40, 36);
 	cairo_set_source_surface(cr, ssurf, x + 5, y + 6);
