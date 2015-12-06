@@ -19,14 +19,16 @@
 
 option::Option *options;
 
-struct gobject {
+struct State {
 	int draw_area_width;
 	int draw_area_height;
 	Board *board;
 	cairo_surface_t *devices_surface, *printables_surface;
+	GtkWidget *window, *mwindow, *grid, *bwindow, *swindow, *cwindow, *draw_area;
 };
 
-static gboolean on_draw_event(GtkWidget *, cairo_t *, gobject *);
+static gboolean on_draw_event(GtkWidget *, cairo_t *, State *);
+static void on_resize_event(GtkWidget *, State *);
 
 int main(int argc, char *argv[]){
 	// process arguments
@@ -107,43 +109,38 @@ int main(int argc, char *argv[]){
 		stdout_write = _stdout_save;
 	}
 
-	// gobject
-	gobject gobj;
-	// use largest board width instead
-	gobj.draw_area_width = std::max(700, 10 + 48 * boards[0].width);
-	gobj.draw_area_height = std::max(575, 10 + 48 * boards[0].height);
-	gobj.board = &boards[0];
-	gobj.devices_surface = create_devices_surface();
-	gobj.printables_surface = create_printables_surface();
-	// gobj.board_symbol
-
-	// GTK window
-	GtkWidget *window, *grid, *bwindow, *swindow, *cwindow, *viewport, *draw_area;
+	// GTK window setup
 	gtk_init(nullptr, nullptr);
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	grid = gtk_grid_new();
-	bwindow = gtk_scrolled_window_new(NULL, NULL);
 
-	// swindow = gtk_scrolled_window_new(NULL, NULL);
-	// cwindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	viewport = gtk_viewport_new(NULL, NULL);
-	draw_area = gtk_drawing_area_new();
+	State state;
+	// use largest board width instead
+	state.draw_area_width = std::max(700, 10 + 48 * boards[0].width);
+	state.draw_area_height = std::max(575, 10 + 48 * boards[0].height);
+	state.board = &boards[0];
+	state.devices_surface = create_devices_surface();
+	state.printables_surface = create_printables_surface();
+	state.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	state.mwindow = gtk_scrolled_window_new(NULL, NULL);
+	state.grid = gtk_grid_new();
+	state.bwindow = gtk_scrolled_window_new(NULL, NULL);
+	state.draw_area = gtk_drawing_area_new();
 
-	g_signal_connect(G_OBJECT(draw_area), "draw", G_CALLBACK(on_draw_event), &gobj);
-	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+	g_signal_connect(G_OBJECT(state.draw_area), "draw", G_CALLBACK(on_draw_event), &state);
+	g_signal_connect(state.window, "check-resize", G_CALLBACK(on_resize_event), &state);
+	g_signal_connect(state.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 	
-	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-	gtk_window_set_default_size(GTK_WINDOW(window), 800, 600);
-	gtk_window_set_title(GTK_WINDOW(window), "Visual Marbelous");
+	gtk_window_set_position(GTK_WINDOW(state.window), GTK_WIN_POS_CENTER);
+	gtk_window_set_default_size(GTK_WINDOW(state.window), 800, 600);
+	gtk_window_set_title(GTK_WINDOW(state.window), "Visual Marbelous");
+	gtk_widget_set_size_request(state.bwindow, 700, 575);
+	gtk_widget_set_size_request(state.draw_area, state.draw_area_width, state.draw_area_height);
+	gtk_container_add(GTK_CONTAINER(state.bwindow), state.draw_area);
+	gtk_grid_attach(GTK_GRID(state.grid), state.bwindow, 0, 0, 1, 1);
+	// extra scrolled window to allow downsizing
+	gtk_container_add(GTK_CONTAINER(state.mwindow), state.grid);
+	gtk_container_add(GTK_CONTAINER(state.window), state.mwindow);
 
-	gtk_widget_set_size_request(bwindow, 700, 575);
-	gtk_widget_set_size_request(draw_area, gobj.draw_area_width, gobj.draw_area_height);
-	gtk_container_add(GTK_CONTAINER(viewport), draw_area);
-	gtk_container_add(GTK_CONTAINER(bwindow), viewport);
-	gtk_grid_attach(GTK_GRID(grid), bwindow, 0, 1, 1, 2);
-	gtk_container_add(GTK_CONTAINER(window), grid);
-
-	gtk_widget_show_all(window);
+	gtk_widget_show_all(state.window);
 
 	gtk_main();
 
@@ -163,38 +160,38 @@ int main(int argc, char *argv[]){
 	// return (outputs[0] >> 8) ? outputs[0] & 0xFF : 0;
 }
 
-static gboolean on_draw_event(GtkWidget *, cairo_t *cr, gobject *gobj){
-	int w = gobj->board->width * 48, h = gobj->board->height * 48;
-	int offx = (gobj->draw_area_width - w)/2, offy = (gobj->draw_area_height - h)/2;
+static gboolean on_draw_event(GtkWidget *, cairo_t *cr, State *state){
+	int w = state->board->width * 48, h = state->board->height * 48;
+	int offx = (state->draw_area_width - w)/2, offy = (state->draw_area_height - h)/2;
 
 	// bg
-	cairo_rectangle(cr, 0.0, 0.0, gobj->draw_area_width, gobj->draw_area_height);
+	cairo_rectangle(cr, 0.0, 0.0, state->draw_area_width, state->draw_area_height);
 	cairo_set_source_rgb(cr, 0.15, 0.15, 0.15);
 	cairo_fill(cr);
 
 	// grid
 	cairo_set_source_rgb(cr, 1, 1, 1);
 	cairo_set_line_width(cr, 0.5);
-	for(int x = 0; x <= gobj->board->width; ++x){
+	for(int x = 0; x <= state->board->width; ++x){
 		cairo_move_to(cr, offx + 48 * x, offy);
 		cairo_line_to(cr, offx + 48 * x, offy + h);
 	}
-	for(int y = 0; y <= gobj->board->height; ++y){
+	for(int y = 0; y <= state->board->height; ++y){
 		cairo_move_to(cr, offx, offy + 48 * y);
 		cairo_line_to(cr, offx + w, offy + 48 * y);
 	}
 	cairo_stroke(cr);
 
 	// devices
-	for(int y = 0; y < gobj->board->height; ++y){
-		for(int x = 0; x < gobj->board->width; ++x){
-			int index = gobj->board->index(x, y);
-			if(gobj->board->cells[index].device != DV_BOARD)
-				draw_device(cr, gobj->devices_surface, gobj->board->cells[index], offx + 48 * x, offy + 48 * y);
+	for(int y = 0; y < state->board->height; ++y){
+		for(int x = 0; x < state->board->width; ++x){
+			int index = state->board->index(x, y);
+			if(state->board->cells[index].device != DV_BOARD)
+				draw_device(cr, state->devices_surface, state->board->cells[index], offx + 48 * x, offy + 48 * y);
 			else{
-				int startx = gobj->board->cells[index].board_call->x;
-				std::string text = gobj->board->cells[index].board_call->board->actual_name;
-				draw_board_call_cell(cr, gobj->printables_surface, text.substr((x - startx) * 2, 2), offx + 48 * x, offy + 48 * y);
+				int startx = state->board->cells[index].board_call->x;
+				std::string text = state->board->cells[index].board_call->board->actual_name;
+				draw_board_call_cell(cr, state->printables_surface, text.substr((x - startx) * 2, 2), offx + 48 * x, offy + 48 * y);
 				// draw box if first cell
 				if(startx == x){
 					cairo_rectangle(cr, offx + 48 * x + 1, offy + 48 * y + 1, 24 * text.length() - 1, 46);
@@ -207,4 +204,14 @@ static gboolean on_draw_event(GtkWidget *, cairo_t *cr, gobject *gobj){
 	}
 
 	return FALSE;
+}
+
+static void on_resize_event(GtkWidget *window, State *state){
+	int width, height;
+	gtk_window_get_size(GTK_WINDOW(window), &width, &height);
+	gtk_widget_set_size_request(state->bwindow, width - 100, height - 25);
+
+	state->draw_area_width = std::max(width - 100, 10 + 48 * state->board->width);
+	state->draw_area_height = std::max(height - 25, 10 + 48 * state->board->height);
+	gtk_widget_set_size_request(state->draw_area, state->draw_area_width, state->draw_area_height);
 }
