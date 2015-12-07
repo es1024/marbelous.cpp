@@ -31,6 +31,16 @@ struct BoardCall{
 	struct RunState{
 		friend class BoardCall;
 
+		// sets prepared_board_calls
+		// use process_boardcalls() instead if not concerned about debugging
+		void prepare_board_calls();
+
+		// copy over result of board calls
+		// does a tick. note: does not process board calls.
+		// returns true if board should not terminate after tick
+		// use_prepared: false if not using prepare_board_calls
+		bool tick(bool use_prepared = true);
+
 		std::vector<uint16_t> cur_marbles;
 		std::vector<uint16_t> next_marbles;
 		std::vector<uint8_t> stdout_text; // only used for verbose modes
@@ -39,6 +49,9 @@ struct BoardCall{
 
 		uint16_t outputs[36] = { };
 		uint16_t output_left = 0, output_right = 0;
+
+		std::vector<RunState *> prepared_board_calls;
+		std::vector<RunState *> processed_board_calls;
 
 		private:
 			// internal states for when the board is running + not compiled

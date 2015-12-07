@@ -28,45 +28,8 @@ BoardCall::RunState *BoardCall::call(uint8_t inputs[], int indents) const {
 		rs->output_board();
 
 	// run to completion
-	do{
-		rs->marbles_moved = false;
-	   	// movement through synchronisers and board calls cannot be 
-	   	// processed with only information about one marble
-		rs->process_synchronisers();
-		rs->process_boardcalls();
-	   	// deal with all other marbles
-	   	for(uint16_t y = 0; y < board->height; ++y){
-	   		for(uint16_t x = 0; x < board->width; ++x){
-	   			uint32_t index = board->index(x,y);
-	   			const Cell &cell = board->cells[index];
-	   			if(!is_empty_cell(rs->cur_marbles[index])){
-	   				rs->process_cell(x, y, cell);
-	   			}
-	   		}
-	   	}
-		// next -> cur
-		std::swap(rs->cur_marbles, rs->next_marbles);
-		std::fill(rs->next_marbles.begin(), rs->next_marbles.end(), 0);
-		// output stdout
-		for(int i = 0; i < board->width; ++i){
-			if(!is_empty_cell(rs->stdout_values[i])){
-				stdout_write(rs->stdout_values[i]);
-				rs->stdout_text.push_back(rs->stdout_values[i] & 255);
-				rs->stdout_values[i] = 0;
-			}
-		}
-		++rs->tick_number;
-		if(verbosity > 2)
-			rs->output_board();
-	}while(
-		(!rs->terminator_reached) &&
-		(rs->marbles_moved) &&
-		(rs->no_output || (
-			std::find(rs->outputs_filled.begin(), rs->outputs_filled.end(), false) != rs->outputs_filled.end() ||
-			!rs->left_filled ||
-			!rs->right_filled
-		))
-	);
+	while(rs->tick(false));
+
 	for(int i = 0, len = board->length; i < len; ++i)
 		rs->copy_output_helper(rs->outputs[i], board->outputs[i]);
 	rs->copy_output_helper(rs->output_left, board->output_left);
@@ -118,6 +81,79 @@ BoardCall::RunState *BoardCall::new_run_state(uint8_t inputs[], int indents) con
 	rs->stdout_values.resize(board->width);
 
 	return rs;
+}
+
+void BoardCall::RunState::prepare_board_calls(){
+	for(const auto &board_call : bc->board->board_calls){
+		uint32_t loc = bc->board->index(board_call.x, board_call.y);
+		bool canCall = true;
+		for(int i = 0; i < board_call.board->length; ++i)
+			if(!board_call.board->inputs[i].empty() && is_empty_cell(cur_marbles[loc + i])){
+				canCall = false;
+				break;
+			}
+		if(canCall){
+			uint8_t inputs[36] = { };
+			for(int i = 0; i < board_call.board->length; ++i)
+				inputs[i] = cur_marbles[loc + i] & 0xFF;
+			RunState *rs = board_call.new_run_state(inputs, indents + 1);
+			prepared_board_calls.push_back(rs);
+		}
+	}
+}
+
+bool BoardCall::RunState::tick(bool use_prepared){
+	marbles_moved = false;
+	if(use_prepared){
+		for(const auto rs : processed_board_calls){
+			uint32_t loc = rs->bc->board->index(rs->bc->x, rs->bc->y);
+			for(int i = 0; i < rs->bc->board->length; ++i)
+				if(!is_empty_cell(rs->outputs[i]))
+					set_marble(loc + i, 0, 1, rs->outputs[i]);
+			if(!is_empty_cell(rs->output_left))
+				set_marble(loc, -1, 0, rs->output_left);
+			if(!is_empty_cell(rs->output_right))
+				set_marble(loc, rs->bc->board->length, 0, rs->output_right);
+			marbles_moved = true;
+		}
+	}else{
+		process_boardcalls();
+	}
+   	// movement through synchronisers and board calls cannot be 
+   	// processed with only information about one marble
+	process_synchronisers();
+   	// deal with all other marbles
+   	for(uint16_t y = 0; y < bc->board->height; ++y){
+   		for(uint16_t x = 0; x < bc->board->width; ++x){
+   			uint32_t index = bc->board->index(x,y);
+   			const Cell &cell = bc->board->cells[index];
+   			if(!is_empty_cell(cur_marbles[index])){
+   				process_cell(x, y, cell);
+   			}
+   		}
+   	}
+	// next -> cur
+	std::swap(cur_marbles, next_marbles);
+	std::fill(next_marbles.begin(), next_marbles.end(), 0);
+	// output stdout
+	for(int i = 0; i < bc->board->width; ++i){
+		if(!is_empty_cell(stdout_values[i])){
+			stdout_write(stdout_values[i]);
+			stdout_text.push_back(stdout_values[i] & 255);
+			stdout_values[i] = 0;
+		}
+	}
+	++tick_number;
+	if(verbosity > 2)
+		output_board();
+
+	return (!terminator_reached) &&
+	       (marbles_moved) &&
+	       (no_output || (
+	           std::find(outputs_filled.begin(), outputs_filled.end(), false) != outputs_filled.end() ||
+	           (!left_filled) ||
+	           (!right_filled)
+	       ));
 }
 
 void BoardCall::RunState::output_board(){
