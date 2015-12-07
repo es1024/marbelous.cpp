@@ -152,7 +152,8 @@ int main(int argc, char *argv[]){
 	gtk_main();
 
 	return 0;
-	// bc.call(inputs, outputs, output_left, output_right);
+
+	// BoardCall::RunState *rs = bc.call(inputs);
 
 	// if(options[OPT_VERBOSE].count() > 0){
 	// 	std::fputs("Combined STDOUT: ", stdout);
@@ -164,7 +165,9 @@ int main(int argc, char *argv[]){
 
 	// prepare_io(false);
 
-	// return (outputs[0] >> 8) ? outputs[0] & 0xFF : 0;
+	// int res = (rs->outputs[0] >> 8) ? rs->outputs[0] & 0xFF : 0;
+
+	// delete rs;
 }
 
 static gboolean on_draw_event(GtkWidget *, cairo_t *cr, State *state){

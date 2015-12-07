@@ -16,97 +16,111 @@ static inline bool is_empty_cell(uint16_t value){
 	return !(value & 0xFF00);
 }
 
-void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], uint16_t *output_left, uint16_t *output_right, int indents){
+BoardCall::RunState *BoardCall::call(const BoardCall *bc, uint8_t inputs[], int indents){
+	return bc->call(inputs, indents);
+}
+
+BoardCall::RunState *BoardCall::call(uint8_t inputs[], int indents) const {
 	// prepare runstate
-	RunState rs;
-	rs.bc = bc;
-	// fill with empty cell placeholders
-	rs.cur_marbles.resize(bc->board->width * bc->board->height, 0);
-	rs.next_marbles.resize(bc->board->width * bc->board->height, 0);
-	// initialize board values
-	for(const std::pair<uint32_t, uint8_t> &marble : bc->board->initial_marbles)
-		rs.cur_marbles[marble.first] = marble.second | 0xFF00;
-	for(int i = 0; i < 36; ++i)
-		for(uint32_t loc : bc->board->inputs[i])
-			rs.cur_marbles[loc] = inputs[i] | 0xFF00;
-	// set unused outputs to prefill
-	for(int i = 0; i < 36; ++i)
-		rs.outputs_filled[i] = bc->board->outputs[i].empty();
-	rs.left_filled = bc->board->output_left.empty();
-	rs.right_filled = bc->board->output_right.empty();
-	// if there are no outputs, then don't exit based on all outputs filled
-	bool no_output = std::find(rs.outputs_filled.begin(), rs.outputs_filled.end(), false) == rs.outputs_filled.end()
-	                 && rs.left_filled && rs.right_filled;
-	// reserve space for stdout
-	rs.stdout_values.resize(bc->board->width);
+	RunState *rs = new_run_state(inputs, indents);
 
 	if(verbosity > 2)
-		rs.output_board(indents);
+		rs->output_board();
 
 	// run to completion
 	do{
-		rs.marbles_moved = false;
+		rs->marbles_moved = false;
 	   	// movement through synchronisers and board calls cannot be 
 	   	// processed with only information about one marble
-		rs.process_synchronisers();
-		rs.process_boardcalls(indents);
+		rs->process_synchronisers();
+		rs->process_boardcalls();
 	   	// deal with all other marbles
-	   	for(uint16_t y = 0; y < bc->board->height; ++y){
-	   		for(uint16_t x = 0; x < bc->board->width; ++x){
-	   			uint32_t index = bc->board->index(x,y);
-	   			const Cell &cell = bc->board->cells[index];
-	   			if(!is_empty_cell(rs.cur_marbles[index])){
-	   				rs.process_cell(x, y, cell);
+	   	for(uint16_t y = 0; y < board->height; ++y){
+	   		for(uint16_t x = 0; x < board->width; ++x){
+	   			uint32_t index = board->index(x,y);
+	   			const Cell &cell = board->cells[index];
+	   			if(!is_empty_cell(rs->cur_marbles[index])){
+	   				rs->process_cell(x, y, cell);
 	   			}
 	   		}
 	   	}
 		// next -> cur
-		std::swap(rs.cur_marbles, rs.next_marbles);
-		std::fill(rs.next_marbles.begin(), rs.next_marbles.end(), 0);
+		std::swap(rs->cur_marbles, rs->next_marbles);
+		std::fill(rs->next_marbles.begin(), rs->next_marbles.end(), 0);
 		// output stdout
-		for(int i = 0; i < bc->board->width; ++i){
-			if(!is_empty_cell(rs.stdout_values[i])){
-				stdout_write(rs.stdout_values[i]);
-				rs.stdout_text.push_back(rs.stdout_values[i] & 255);
-				rs.stdout_values[i] = 0;
+		for(int i = 0; i < board->width; ++i){
+			if(!is_empty_cell(rs->stdout_values[i])){
+				stdout_write(rs->stdout_values[i]);
+				rs->stdout_text.push_back(rs->stdout_values[i] & 255);
+				rs->stdout_values[i] = 0;
 			}
 		}
-		++rs.tick_number;
+		++rs->tick_number;
 		if(verbosity > 2)
-			rs.output_board(indents);
+			rs->output_board();
 	}while(
-		(!rs.terminator_reached) &&
-		(rs.marbles_moved) &&
-		(no_output || (
-			std::find(rs.outputs_filled.begin(), rs.outputs_filled.end(), false) != rs.outputs_filled.end() ||
-			!rs.left_filled ||
-			!rs.right_filled
+		(!rs->terminator_reached) &&
+		(rs->marbles_moved) &&
+		(rs->no_output || (
+			std::find(rs->outputs_filled.begin(), rs->outputs_filled.end(), false) != rs->outputs_filled.end() ||
+			!rs->left_filled ||
+			!rs->right_filled
 		))
 	);
-	for(int i = 0, len = bc->board->length; i < len; ++i)
-		rs.copy_output_helper(outputs[i], bc->board->outputs[i]);
-	rs.copy_output_helper(*output_left, bc->board->output_left);
-	rs.copy_output_helper(*output_right, bc->board->output_right);
+	for(int i = 0, len = board->length; i < len; ++i)
+		rs->copy_output_helper(rs->outputs[i], board->outputs[i]);
+	rs->copy_output_helper(rs->output_left, board->output_left);
+	rs->copy_output_helper(rs->output_right, board->output_right);
 	if(verbosity > 1){
-		std::string indent = std::string(indents, ' ');
-		if(rs.stdout_text.size() > 0){
+		std::string indent = std::string(rs->indents, ' ');
+		if(rs->stdout_text.size() > 0){
 			std::printf("%sstdout_write STDOUT:", indent.c_str());
-			for(uint8_t c : rs.stdout_text){
+			for(uint8_t c : rs->stdout_text){
 				_stdout_writehex(c);
 			}
 			std::fputc('\n', stdout);
 		}
-		std::printf("%sExiting board %s on tick %u due to ", indent.c_str(), bc->board->short_name.c_str(), rs.tick_number);
-		if(rs.terminator_reached)
+		std::printf("%sExiting board %s on tick %u due to ", indent.c_str(), board->short_name.c_str(), rs->tick_number);
+		if(rs->terminator_reached)
 			std::puts("a filled terminator (!!) device");
-		else if(!rs.marbles_moved)
+		else if(!rs->marbles_moved)
 			std::puts("lack of activity");
 		else
 			std::puts("filled output devices");		
 	}
+
+	return rs;
 }
 
-void BoardCall::RunState::output_board(int indents){
+BoardCall::RunState *BoardCall::new_run_state(uint8_t inputs[], int indents) const {
+	// prepare runstate
+	RunState *rs = new RunState;
+	rs->bc = this;
+	rs->indents = indents;
+	// fill with empty cell placeholders
+	rs->cur_marbles.resize(board->width * board->height, 0);
+	rs->next_marbles.resize(board->width * board->height, 0);
+	// initialize board values
+	for(const std::pair<uint32_t, uint8_t> &marble : board->initial_marbles)
+		rs->cur_marbles[marble.first] = marble.second | 0xFF00;
+	for(int i = 0; i < 36; ++i)
+		for(uint32_t loc : board->inputs[i])
+			rs->cur_marbles[loc] = inputs[i] | 0xFF00;
+	// set unused outputs to prefill
+	for(int i = 0; i < 36; ++i)
+		rs->outputs_filled[i] = board->outputs[i].empty();
+	rs->left_filled = board->output_left.empty();
+	rs->right_filled = board->output_right.empty();
+	// if there are no outputs, then don't exit based on all outputs filled
+	rs->no_output = std::find(rs->outputs_filled.begin(), rs->outputs_filled.end(), false) == rs->outputs_filled.end()
+	                 && rs->left_filled && rs->right_filled;
+	// reserve space for stdout
+	rs->stdout_values.resize(board->width);
+
+	return rs;
+}
+
+void BoardCall::RunState::output_board(){
 	std::string indent = std::string(indents, ' ');
 	std::printf("%s:%s tick %u\n", indent.c_str(), bc->board->short_name.c_str(), tick_number);
 	for(int y = 0; y < bc->board->height; ++y){
@@ -247,7 +261,7 @@ void BoardCall::RunState::process_synchronisers(){
 		}
 	}
 }
-void BoardCall::RunState::process_boardcalls(int indents){
+void BoardCall::RunState::process_boardcalls(){
 	for(const auto &board_call : bc->board->board_calls){
 		uint32_t loc = bc->board->index(board_call.x, board_call.y);
 		bool canCall = true;
@@ -263,18 +277,18 @@ void BoardCall::RunState::process_boardcalls(int indents){
 			}
 		}else{
 			uint8_t inputs[36] = { };
-			uint16_t outputs[36] = { }, output_left = 0, output_right = 0;
 			for(int i = 0; i < board_call.board->length; ++i)
 				inputs[i] = cur_marbles[loc + i] & 0xFF;
-			board_call.call(inputs, outputs, output_left, output_right, indents + 1);
+			RunState *rs = board_call.call(inputs, indents + 1);
 			for(int i = 0; i < board_call.board->length; ++i)
-				if(!is_empty_cell(outputs[i]))
-					set_marble(loc + i, 0, 1, outputs[i]);
-			if(!is_empty_cell(output_left))
-				set_marble(loc, -1, 0, output_left);
-			if(!is_empty_cell(output_right))
-				set_marble(loc, board_call.board->length, 0, output_right);
+				if(!is_empty_cell(rs->outputs[i]))
+					set_marble(loc + i, 0, 1, rs->outputs[i]);
+			if(!is_empty_cell(rs->output_left))
+				set_marble(loc, -1, 0, rs->output_left);
+			if(!is_empty_cell(rs->output_right))
+				set_marble(loc, board_call.board->length, 0, rs->output_right);
 			marbles_moved = true;
+			delete rs;
 		}
 	}
 }

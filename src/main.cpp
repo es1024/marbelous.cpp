@@ -73,7 +73,6 @@ int main(int argc, char *argv[]){
 
 	BoardCall bc{&boards[0], 0, 0};
 	uint8_t inputs[36] = { 0 };
-	uint16_t outputs[36], output_left, output_right;
 
 	for(int i = 0; i <= highest_input; ++i){
 		if(!boards[0].inputs[i].empty()){
@@ -101,7 +100,7 @@ int main(int argc, char *argv[]){
 		stdout_write = _stdout_save;
 	}
 
-	bc.call(inputs, outputs, output_left, output_right);
+	BoardCall::RunState *rs = bc.call(inputs);
 
 	if(options[OPT_VERBOSE].count() > 0){
 		std::fputs("Combined STDOUT: ", stdout);
@@ -113,5 +112,9 @@ int main(int argc, char *argv[]){
 
 	prepare_io(false);
 
-	return (outputs[0] >> 8) ? outputs[0] & 0xFF : 0;
+	int res = (rs->outputs[0] >> 8) ? rs->outputs[0] & 0xFF : 0;
+
+	delete rs;
+
+	return res;
 }
