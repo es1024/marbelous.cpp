@@ -40,8 +40,6 @@ void BoardCall::call(const BoardCall *bc, uint8_t inputs[], uint16_t outputs[], 
 	// reserve space for stdout
 	rs.stdout_values.resize(bc->board->width);
 
-	int verbosity = options[OPT_VERBOSE].count();
-
 	if(verbosity > 2)
 		rs.output_board(indents);
 
@@ -193,7 +191,7 @@ void BoardCall::RunState::set_marble(uint32_t loc,
 	y = loc / bc->board->width;
 	x = loc % bc->board->width;
 	if(x + x_disp >= bc->board->width || x + x_disp < 0){
-		if(options[OPT_CYLINDRICAL].last()->type() == OPT_TYPE_ENABLE){
+		if(cylindrical){
 			if(x + x_disp >= bc->board->width){
 				x = 0;
 			}else{

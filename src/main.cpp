@@ -14,6 +14,8 @@
 #include "options.h"
 
 option::Option *options;
+int verbosity;
+bool cylindrical;
 
 int main(int argc, char *argv[]){
 	// process arguments
@@ -64,6 +66,11 @@ int main(int argc, char *argv[]){
 		emit_error("Expected " + std::to_string(highest_input + 1) + " inputs, got " + std::to_string(parse.nonOptionsCount() - 1));
 		return -4;	
 	}
+
+	// misc options
+	verbosity = options[OPT_VERBOSE].count();
+	cylindrical = (options[OPT_CYLINDRICAL].last()->type() == OPT_TYPE_ENABLE);
+
 	BoardCall bc{&boards[0], 0, 0};
 	uint8_t inputs[36] = { 0 };
 	uint16_t outputs[36], output_left, output_right;

@@ -28,4 +28,7 @@ const option::Descriptor usage[] = {
 // defined in main.cpp
 extern option::Option *options;
 
+extern int verbosity;
+extern bool cylindrical;
+
 #endif // OPTIONS_H
