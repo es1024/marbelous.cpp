@@ -31,6 +31,8 @@ struct BoardCall{
 	struct RunState{
 		friend class BoardCall;
 
+		~RunState();
+
 		// sets prepared_board_calls
 		// use process_boardcalls() instead if not concerned about debugging
 		void prepare_board_calls();

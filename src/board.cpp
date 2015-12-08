@@ -83,6 +83,13 @@ BoardCall::RunState *BoardCall::new_run_state(uint8_t inputs[], int indents) con
 	return rs;
 }
 
+BoardCall::RunState::~RunState(){
+	for(const auto rs : prepared_board_calls)
+		delete rs;
+	for(const auto rs : processed_board_calls)
+		delete rs;
+}
+
 void BoardCall::RunState::prepare_board_calls(){
 	for(const auto &board_call : bc->board->board_calls){
 		uint32_t loc = bc->board->index(board_call.x, board_call.y);
@@ -119,6 +126,14 @@ bool BoardCall::RunState::tick(bool use_prepared){
 	}else{
 		process_boardcalls();
 	}
+	// clear prepared/processed board calls
+	for(const auto rs : prepared_board_calls)
+		delete rs;
+	for(const auto rs : processed_board_calls)
+		delete rs;
+	prepared_board_calls.clear();
+	processed_board_calls.clear();
+
    	// movement through synchronisers and board calls cannot be 
    	// processed with only information about one marble
 	process_synchronisers();
