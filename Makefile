@@ -20,13 +20,6 @@ else
 	BIN_SUFFIX =
 endif
 
-TARGET = bin/
-ifeq ($(OS), Windows_NT)
-	TARGET = bin/marbelous.exe bin
-else
-	TARGET = bin/marbelous
-endif
-
 all: bin/marbelous$(BIN_SUFFIX) bin/vmarbelous$(BIN_SUFFIX)
 
 bin/marbelous$(BIN_SUFFIX): $(OBJS) $(COBJS)
