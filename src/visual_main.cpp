@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <map>
+#include <stack>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -24,13 +25,16 @@ bool cylindrical;
 struct State {
 	int draw_area_width;
 	int draw_area_height;
-	BoardCall::RunState *rs;
+	BoardCall::RunState *rs; // current runstate
+	// stack of runstates...
+	std::stack<BoardCall::RunState *> rs_stack;
 	cairo_surface_t *devices_surface, *printables_surface, *marble_surface;
 	GtkWidget *window, *mwindow, *grid, *bwindow, *swindow, *cwindow, *draw_area;
 };
 
 static gboolean on_draw_event(GtkWidget *, cairo_t *, State *);
 static void on_resize_event(GtkWidget *, State *);
+static gboolean tick_board(State *);
 
 int main(int argc, char *argv[]){
 	// process arguments
@@ -135,7 +139,8 @@ int main(int argc, char *argv[]){
 	g_signal_connect(G_OBJECT(state.draw_area), "draw", G_CALLBACK(on_draw_event), &state);
 	g_signal_connect(state.window, "check-resize", G_CALLBACK(on_resize_event), &state);
 	g_signal_connect(state.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-	
+	g_timeout_add(500, GSourceFunc(tick_board), &state);
+
 	gtk_window_set_position(GTK_WINDOW(state.window), GTK_WIN_POS_CENTER);
 	gtk_window_set_default_size(GTK_WINDOW(state.window), 800, 600);
 	gtk_window_set_title(GTK_WINDOW(state.window), "Visual Marbelous");
@@ -241,4 +246,37 @@ static void on_resize_event(GtkWidget *window, State *state){
 	state->draw_area_width = std::max(width - 100, 10 + 48 * state->rs->bc->board->width);
 	state->draw_area_height = std::max(height - 25, 10 + 48 * state->rs->bc->board->height);
 	gtk_widget_set_size_request(state->draw_area, state->draw_area_width, state->draw_area_height);
+}
+
+static gboolean tick_board(State *state){
+	bool not_finished;
+	if(state->rs->prepared_board_calls.size() != 0){
+		state->rs_stack.push(state->rs);
+		state->rs = state->rs->prepared_board_calls[0];
+		not_finished = true;
+	}else if(state->rs->is_finished()){
+		state->rs->finalize();
+		if(state->rs_stack.size() == 0){
+			not_finished = false;
+		}else{
+			BoardCall::RunState *top = state->rs_stack.top();
+			top->prepared_board_calls.erase(top->prepared_board_calls.begin());
+			top->processed_board_calls.push_back(state->rs);
+			state->rs_stack.pop();
+			state->rs = top;
+			not_finished = true;
+		}
+	}else if(state->rs->processed_board_calls.size() != 0){
+		state->rs->tick();
+		not_finished = true;
+	}else{
+		state->rs->prepare_board_calls();
+		if(state->rs->prepared_board_calls.size() == 0)
+			state->rs->tick();
+		not_finished = true;
+	}
+	std::fflush(stdout);
+	gtk_widget_queue_draw(state->draw_area);
+
+	return not_finished ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
 }

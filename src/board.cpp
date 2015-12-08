@@ -30,27 +30,7 @@ BoardCall::RunState *BoardCall::call(uint8_t inputs[], int indents) const {
 	// run to completion
 	while(rs->tick(false));
 
-	for(int i = 0, len = board->length; i < len; ++i)
-		rs->copy_output_helper(rs->outputs[i], board->outputs[i]);
-	rs->copy_output_helper(rs->output_left, board->output_left);
-	rs->copy_output_helper(rs->output_right, board->output_right);
-	if(verbosity > 1){
-		std::string indent = std::string(rs->indents, ' ');
-		if(rs->stdout_text.size() > 0){
-			std::printf("%sstdout_write STDOUT:", indent.c_str());
-			for(uint8_t c : rs->stdout_text){
-				_stdout_writehex(c);
-			}
-			std::fputc('\n', stdout);
-		}
-		std::printf("%sExiting board %s on tick %u due to ", indent.c_str(), board->short_name.c_str(), rs->tick_number);
-		if(rs->terminator_reached)
-			std::puts("a filled terminator (!!) device");
-		else if(!rs->marbles_moved)
-			std::puts("lack of activity");
-		else
-			std::puts("filled output devices");		
-	}
+	rs->finalize();
 
 	return rs;
 }
@@ -99,7 +79,12 @@ void BoardCall::RunState::prepare_board_calls(){
 				canCall = false;
 				break;
 			}
-		if(canCall){
+		if(!canCall){
+			for(uint32_t i = loc, end = loc + board_call.board->length; i < end; ++i){
+				if(!is_empty_cell(cur_marbles[i]))
+					set_marble(i, 0, 0, cur_marbles[i]);
+			}
+		}else{
 			uint8_t inputs[36] = { };
 			for(int i = 0; i < board_call.board->length; ++i)
 				inputs[i] = cur_marbles[loc + i] & 0xFF;
@@ -113,14 +98,14 @@ bool BoardCall::RunState::tick(bool use_prepared){
 	marbles_moved = false;
 	if(use_prepared){
 		for(const auto rs : processed_board_calls){
-			uint32_t loc = rs->bc->board->index(rs->bc->x, rs->bc->y);
+			uint32_t loc = bc->board->index(rs->bc->x, rs->bc->y);
 			for(int i = 0; i < rs->bc->board->length; ++i)
 				if(!is_empty_cell(rs->outputs[i]))
 					set_marble(loc + i, 0, 1, rs->outputs[i]);
 			if(!is_empty_cell(rs->output_left))
 				set_marble(loc, -1, 0, rs->output_left);
 			if(!is_empty_cell(rs->output_right))
-				set_marble(loc, rs->bc->board->length, 0, rs->output_right);
+				set_marble(loc + (rs->bc->board->length - 1), 1, 0, rs->output_right);
 			marbles_moved = true;
 		}
 	}else{
@@ -161,14 +146,42 @@ bool BoardCall::RunState::tick(bool use_prepared){
 	++tick_number;
 	if(verbosity > 2)
 		output_board();
+	
+	return !is_finished();
+}
 
-	return (!terminator_reached) &&
+void BoardCall::RunState::finalize(){
+	for(int i = 0, len = bc->board->length; i < len; ++i)
+		copy_output_helper(outputs[i], bc->board->outputs[i]);
+	copy_output_helper(output_left, bc->board->output_left);
+	copy_output_helper(output_right, bc->board->output_right);
+	if(verbosity > 1){
+		std::string indent = std::string(indents, ' ');
+		if(stdout_text.size() > 0){
+			std::printf("%sstdout_write STDOUT:", indent.c_str());
+			for(uint8_t c : stdout_text){
+				_stdout_writehex(c);
+			}
+			std::fputc('\n', stdout);
+		}
+		std::printf("%sExiting board %s on tick %u due to ", indent.c_str(), bc->board->short_name.c_str(), tick_number);
+		if(terminator_reached)
+			std::puts("a filled terminator (!!) device");
+		else if(!marbles_moved)
+			std::puts("lack of activity");
+		else
+			std::puts("filled output devices");		
+	}
+}
+
+bool BoardCall::RunState::is_finished(){
+	return !((!terminator_reached) &&
 	       (marbles_moved) &&
 	       (no_output || (
 	           std::find(outputs_filled.begin(), outputs_filled.end(), false) != outputs_filled.end() ||
 	           (!left_filled) ||
 	           (!right_filled)
-	       ));
+	       )));
 }
 
 void BoardCall::RunState::output_board(){
@@ -337,7 +350,7 @@ void BoardCall::RunState::process_boardcalls(){
 			if(!is_empty_cell(rs->output_left))
 				set_marble(loc, -1, 0, rs->output_left);
 			if(!is_empty_cell(rs->output_right))
-				set_marble(loc, board_call.board->length, 0, rs->output_right);
+				set_marble(loc + (board_call.board->length - 1), 1, 0, rs->output_right);
 			marbles_moved = true;
 			delete rs;
 		}

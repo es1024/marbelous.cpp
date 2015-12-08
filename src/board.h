@@ -43,6 +43,14 @@ struct BoardCall{
 		// use_prepared: false if not using prepare_board_calls
 		bool tick(bool use_prepared = true);
 
+		// aggregates outputs to output fields
+		// call after board finishes.
+		// do not call if not using prepare_board_calls
+		void finalize();
+
+		// check if board has terminated
+		bool is_finished();
+
 		std::vector<uint16_t> cur_marbles;
 		std::vector<uint16_t> next_marbles;
 		std::vector<uint8_t> stdout_text; // only used for verbose modes
@@ -59,7 +67,7 @@ struct BoardCall{
 			// internal states for when the board is running + not compiled
 			// _outputs_filled and _*_output are true when output is filled or doesn't exist
 			// outputs_filled and *_output are not true when the output does not exist
-			bool marbles_moved = false, terminator_reached = false;
+			bool marbles_moved = true, terminator_reached = false;
 			std::vector<bool> outputs_filled = std::vector<bool>(36);
 			bool left_filled = false, right_filled = false;
 			std::vector<uint16_t> stdout_values;
