@@ -1,9 +1,14 @@
 #include "cell.h"
 #include "surfaces.h"
+#include <cmath>
 #include <string>
 #include <cairo.h>
 #include <pango/pangocairo.h>
 #include <pango/pangoft2.h>
+
+#ifndef M_PI
+	#define M_PI 3.14159265358979323846
+#endif
 
 static cairo_surface_t *create_text_surface(
 	int swidth,
@@ -112,13 +117,39 @@ cairo_surface_t *create_printables_surface(){
  &#113;  &#114;  &#115;  &#116;  &#117;  &#118;  &#119;  &#120;  &#121;\n\
  &#122;  &#123;  &#124;  &#125;  &#126;\
 </span>\n\
-<span foreground='#9A9AFF'>\
+<span foreground='#BABAFF' font='Courier New 22' font_weight='heavy'>\
 0  1  2  3  4  5  6  7  8\n\
 9  A  B  C  D  E  F\n\
  0  1  2  3  4  5  6  7  8\n\
  9  A  B  C  D  E  F\n\
 </span></span>";
 	return create_text_surface(512, 1024, text);
+}
+
+cairo_surface_t *create_marble_surface(){
+	cairo_t *scr;
+	cairo_surface_t *surf;
+	cairo_pattern_t *pat;
+
+	surf  = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 48, 48);
+	scr = cairo_create(surf);
+	pat = cairo_pattern_create_radial(40, 0, 10, 26, 20, 34.415);
+	cairo_pattern_add_color_stop_rgba(pat, 1, 0.2, 0.0, 0.2, 1);
+	cairo_pattern_add_color_stop_rgba(pat, 0, 0.8, 0.5, 0.8, 1);
+
+	cairo_arc(scr, 24, 24, 22, 0, 2 * M_PI);
+	cairo_clip(scr);
+	cairo_new_path(scr);
+	cairo_rectangle(scr, 0, 0, 48, 48);
+	cairo_set_source(scr, pat);
+	cairo_fill(scr);
+
+	cairo_set_source_rgb(scr, 1.0, 0.0, 1.0);
+	cairo_stroke_preserve(scr);
+
+	cairo_pattern_destroy(pat);
+	cairo_destroy(scr);
+	return surf;
 }
 
 void draw_device(cairo_t *cr, cairo_surface_t *surf, Cell c, double x, double y){
@@ -174,7 +205,6 @@ void draw_device(cairo_t *cr, cairo_surface_t *surf, Cell c, double x, double y)
 	}
 }
 
-
 void draw_board_call_cell(cairo_t *cr, cairo_surface_t *surf, std::string text, double x, double y){
 	// space starts at 0; second chars start at line 10 (cell 99)
 	int i = ((32 <= text[0] && text[0] < 127) ? (text[0] - 32) : 0);
@@ -188,6 +218,28 @@ void draw_board_call_cell(cairo_t *cr, cairo_surface_t *surf, std::string text, 
 	cairo_surface_destroy(ssurf);
 	ssurf = cairo_surface_create_for_rectangle(surf, eix, eiy, 40, 36);
 	cairo_set_source_surface(cr, ssurf, x + 5, y + 6);
+	cairo_paint(cr);
+	cairo_surface_destroy(ssurf);
+}
+
+void draw_marble(cairo_t *cr, cairo_surface_t *printables, cairo_surface_t *marble, uint8_t value, double x, double y){
+	int i = value / 16, ei = value % 16;
+	int ix = (i % 9) * 51, // displacement is smaller: smaller font
+	    iy = 22 * 36 + (i / 9) * 33, // 22 * 36: first 22 rows are size 36, following rows are 33 (smaller font)
+	    eix = (ei % 9) * 51,
+	    eiy = 22 * 36 + (2 + ei / 9) * 33;
+	cairo_new_path(cr);
+	cairo_set_line_width(cr, 0);
+	cairo_rectangle(cr, x, y, 48, 48);
+	cairo_set_source_surface(cr, marble, x, y);
+	cairo_paint(cr);
+
+	cairo_surface_t *ssurf = cairo_surface_create_for_rectangle(printables, ix, iy, 40, 36);
+	cairo_set_source_surface(cr, ssurf, x + 7, y + 8);
+	cairo_paint(cr);
+	cairo_surface_destroy(ssurf);
+	ssurf = cairo_surface_create_for_rectangle(printables, eix, eiy, 40, 36);
+	cairo_set_source_surface(cr, ssurf, x + 7, y + 8);
 	cairo_paint(cr);
 	cairo_surface_destroy(ssurf);
 }

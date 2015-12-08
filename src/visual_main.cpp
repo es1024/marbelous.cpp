@@ -24,8 +24,8 @@ bool cylindrical;
 struct State {
 	int draw_area_width;
 	int draw_area_height;
-	Board *board;
-	cairo_surface_t *devices_surface, *printables_surface;
+	BoardCall::RunState *rs;
+	cairo_surface_t *devices_surface, *printables_surface, *marble_surface;
 	GtkWidget *window, *mwindow, *grid, *bwindow, *swindow, *cwindow, *draw_area;
 };
 
@@ -88,7 +88,6 @@ int main(int argc, char *argv[]){
 
 	BoardCall bc{&boards[0], 0, 0};
 	uint8_t inputs[36] = { 0 };
-	uint16_t outputs[36], output_left, output_right;
 
 	for(int i = 0; i <= highest_input; ++i){
 		if(!boards[0].inputs[i].empty()){
@@ -123,9 +122,10 @@ int main(int argc, char *argv[]){
 	// use largest board width instead
 	state.draw_area_width = std::max(700, 10 + 48 * boards[0].width);
 	state.draw_area_height = std::max(575, 10 + 48 * boards[0].height);
-	state.board = &boards[0];
+	state.rs = bc.new_run_state(inputs);
 	state.devices_surface = create_devices_surface();
 	state.printables_surface = create_printables_surface();
+	state.marble_surface = create_marble_surface();
 	state.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	state.mwindow = gtk_scrolled_window_new(NULL, NULL);
 	state.grid = gtk_grid_new();
@@ -151,6 +151,12 @@ int main(int argc, char *argv[]){
 
 	gtk_main();
 
+	// cleanup
+	delete state.rs;
+	cairo_surface_destroy(state.marble_surface);
+	cairo_surface_destroy(state.printables_surface);
+	cairo_surface_destroy(state.devices_surface);
+
 	return 0;
 
 	// BoardCall::RunState *rs = bc.call(inputs);
@@ -171,7 +177,8 @@ int main(int argc, char *argv[]){
 }
 
 static gboolean on_draw_event(GtkWidget *, cairo_t *cr, State *state){
-	int w = state->board->width * 48, h = state->board->height * 48;
+	const Board *board = state->rs->bc->board;
+	int w = board->width * 48, h = board->height * 48;
 	int offx = (state->draw_area_width - w)/2, offy = (state->draw_area_height - h)/2;
 
 	// bg
@@ -182,28 +189,29 @@ static gboolean on_draw_event(GtkWidget *, cairo_t *cr, State *state){
 	// grid
 	cairo_set_source_rgb(cr, 1, 1, 1);
 	cairo_set_line_width(cr, 0.5);
-	for(int x = 0; x <= state->board->width; ++x){
+	for(int x = 0; x <= board->width; ++x){
 		cairo_move_to(cr, offx + 48 * x, offy);
 		cairo_line_to(cr, offx + 48 * x, offy + h);
 	}
-	for(int y = 0; y <= state->board->height; ++y){
+	for(int y = 0; y <= board->height; ++y){
 		cairo_move_to(cr, offx, offy + 48 * y);
 		cairo_line_to(cr, offx + w, offy + 48 * y);
 	}
 	cairo_stroke(cr);
 
 	// devices
-	for(int y = 0; y < state->board->height; ++y){
-		for(int x = 0; x < state->board->width; ++x){
-			int index = state->board->index(x, y);
-			if(state->board->cells[index].device != DV_BOARD)
-				draw_device(cr, state->devices_surface, state->board->cells[index], offx + 48 * x, offy + 48 * y);
+	for(int y = 0; y < board->height; ++y){
+		for(int x = 0; x < board->width; ++x){
+			int index = board->index(x, y);
+			if(board->cells[index].device != DV_BOARD)
+				draw_device(cr, state->devices_surface, board->cells[index], offx + 48 * x, offy + 48 * y);
 			else{
-				int startx = state->board->cells[index].board_call->x;
-				std::string text = state->board->cells[index].board_call->board->actual_name;
+				int startx = board->cells[index].board_call->x;
+				std::string text = board->cells[index].board_call->board->actual_name;
 				draw_board_call_cell(cr, state->printables_surface, text.substr((x - startx) * 2, 2), offx + 48 * x, offy + 48 * y);
 				// draw box if first cell
 				if(startx == x){
+					cairo_new_path(cr);
 					cairo_rectangle(cr, offx + 48 * x + 1, offy + 48 * y + 1, 24 * text.length() - 1, 46);
 					cairo_set_source_rgb(cr, 1, 0.2, 0.5);
 					cairo_set_line_width(cr, 3);
@@ -213,6 +221,15 @@ static gboolean on_draw_event(GtkWidget *, cairo_t *cr, State *state){
 		}
 	}
 
+	// marbles
+	for(int y = 0; y < board->height; ++y){
+		for(int x = 0; x < board->width; ++x){
+			int index = board->index(x, y);
+			uint16_t value = state->rs->cur_marbles[index];
+			if(value & 0xFF00)
+				draw_marble(cr, state->printables_surface, state->marble_surface, value & 0xFF, offx + 48 * x, offy + 48 * y);
+		}
+	}
 	return FALSE;
 }
 
@@ -221,7 +238,7 @@ static void on_resize_event(GtkWidget *window, State *state){
 	gtk_window_get_size(GTK_WINDOW(window), &width, &height);
 	gtk_widget_set_size_request(state->bwindow, width - 100, height - 25);
 
-	state->draw_area_width = std::max(width - 100, 10 + 48 * state->board->width);
-	state->draw_area_height = std::max(height - 25, 10 + 48 * state->board->height);
+	state->draw_area_width = std::max(width - 100, 10 + 48 * state->rs->bc->board->width);
+	state->draw_area_height = std::max(height - 25, 10 + 48 * state->rs->bc->board->height);
 	gtk_widget_set_size_request(state->draw_area, state->draw_area_width, state->draw_area_height);
 }
