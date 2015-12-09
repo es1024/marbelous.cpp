@@ -23,16 +23,20 @@ int verbosity;
 bool cylindrical;
 
 struct State {
+	int width, height;
 	int draw_area_width;
 	int draw_area_height;
+	int swindow_height;
 	BoardCall::RunState *rs; // current runstate
 	// stack of runstates...
 	std::stack<BoardCall::RunState *> rs_stack;
-	cairo_surface_t *devices_surface, *printables_surface, *marble_surface;
-	GtkWidget *window, *mwindow, *grid, *bwindow, *swindow, *cwindow, *draw_area;
+	cairo_surface_t *devices_surface, *printables_surface, *marble_surface, *cn16_surface;
+	GtkWidget *window, *mwindow, *grid, *bwindow, *swindow, *cwindow, *draw_area, *sdraw_area;
+	cairo_surface_t *swindow_surface;
 };
 
-static gboolean on_draw_event(GtkWidget *, cairo_t *, State *);
+static gboolean on_bdraw_event(GtkWidget *, cairo_t *, State *);
+static gboolean on_sdraw_event(GtkWidget *, cairo_t *, State *);
 static void on_resize_event(GtkWidget *, State *);
 static gboolean tick_board(State *);
 
@@ -124,19 +128,31 @@ int main(int argc, char *argv[]){
 
 	State state;
 	// use largest board width instead
+	state.width = 800;
+	state.height = 600;
 	state.draw_area_width = std::max(700, 10 + 48 * boards[0].width);
 	state.draw_area_height = std::max(575, 10 + 48 * boards[0].height);
+	state.swindow_height = 16;
 	state.rs = bc.new_run_state(inputs);
 	state.devices_surface = create_devices_surface();
 	state.printables_surface = create_printables_surface();
 	state.marble_surface = create_marble_surface();
+	state.cn16_surface = create_cn16_surface();
 	state.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	state.mwindow = gtk_scrolled_window_new(NULL, NULL);
 	state.grid = gtk_grid_new();
 	state.bwindow = gtk_scrolled_window_new(NULL, NULL);
+	state.swindow = gtk_scrolled_window_new(NULL, NULL);
 	state.draw_area = gtk_drawing_area_new();
+	state.sdraw_area = gtk_drawing_area_new();
+	state.swindow_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state.swindow_height);
+	// draw "MB" to swindow_surface...
+	cairo_t *tmp = cairo_create(state.swindow_surface);
+	draw_text_cn16(tmp, state.cn16_surface, "MB", 0, 0);
+	cairo_destroy(tmp);
 
-	g_signal_connect(G_OBJECT(state.draw_area), "draw", G_CALLBACK(on_draw_event), &state);
+	g_signal_connect(G_OBJECT(state.draw_area), "draw", G_CALLBACK(on_bdraw_event), &state);
+	g_signal_connect(G_OBJECT(state.sdraw_area), "draw", G_CALLBACK(on_sdraw_event), &state);
 	g_signal_connect(state.window, "check-resize", G_CALLBACK(on_resize_event), &state);
 	g_signal_connect(state.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 	g_timeout_add(500, GSourceFunc(tick_board), &state);
@@ -146,8 +162,11 @@ int main(int argc, char *argv[]){
 	gtk_window_set_title(GTK_WINDOW(state.window), "Visual Marbelous");
 	gtk_widget_set_size_request(state.bwindow, 700, 575);
 	gtk_widget_set_size_request(state.draw_area, state.draw_area_width, state.draw_area_height);
+	gtk_widget_set_size_request(state.swindow, 100, 600);
 	gtk_container_add(GTK_CONTAINER(state.bwindow), state.draw_area);
+	gtk_container_add(GTK_CONTAINER(state.swindow), state.sdraw_area);
 	gtk_grid_attach(GTK_GRID(state.grid), state.bwindow, 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(state.grid), state.swindow, 1, 0, 2, 2);
 	// extra scrolled window to allow downsizing
 	gtk_container_add(GTK_CONTAINER(state.mwindow), state.grid);
 	gtk_container_add(GTK_CONTAINER(state.window), state.mwindow);
@@ -181,7 +200,7 @@ int main(int argc, char *argv[]){
 	// delete rs;
 }
 
-static gboolean on_draw_event(GtkWidget *, cairo_t *cr, State *state){
+static gboolean on_bdraw_event(GtkWidget *, cairo_t *cr, State *state){
 	const Board *board = state->rs->bc->board;
 	int w = board->width * 48, h = board->height * 48;
 	int offx = (state->draw_area_width - w)/2, offy = (state->draw_area_height - h)/2;
@@ -235,16 +254,39 @@ static gboolean on_draw_event(GtkWidget *, cairo_t *cr, State *state){
 				draw_marble(cr, state->printables_surface, state->marble_surface, value & 0xFF, offx + 48 * x, offy + 48 * y);
 		}
 	}
+
+	return FALSE;
+}
+
+static gboolean on_sdraw_event(GtkWidget *, cairo_t *cr, State *state){
+	cairo_new_path(cr);
+	cairo_set_line_width(cr, 1.0);
+	cairo_set_source_rgb(cr, 0.2, 0.2, 0.3);
+	cairo_rectangle(cr, 0, 0, 100, state->height);
+	cairo_fill(cr);
+
+	cairo_new_path(cr);
+	cairo_set_line_width(cr, 0);
+	cairo_rectangle(cr, 5, 5, 90, state->swindow_height);
+	cairo_set_source_surface(cr, state->swindow_surface, 5, 5);
+	cairo_paint(cr);
+
+	cairo_new_path(cr);
+	cairo_set_line_width(cr, 1.0);
+	cairo_set_source_rgb(cr, 0.9, 1.0, 0.9);
+	cairo_rectangle(cr, 4, 4, 91, 17);
+	cairo_stroke(cr);
+
 	return FALSE;
 }
 
 static void on_resize_event(GtkWidget *window, State *state){
-	int width, height;
-	gtk_window_get_size(GTK_WINDOW(window), &width, &height);
-	gtk_widget_set_size_request(state->bwindow, width - 100, height - 25);
+	gtk_window_get_size(GTK_WINDOW(window), &state->width, &state->height);
+	gtk_widget_set_size_request(state->bwindow, state->width - 100, state->height - 25);
+	gtk_widget_set_size_request(state->swindow, 100, state->height);
 
-	state->draw_area_width = std::max(width - 100, 10 + 48 * state->rs->bc->board->width);
-	state->draw_area_height = std::max(height - 25, 10 + 48 * state->rs->bc->board->height);
+	state->draw_area_width = std::max(state->width - 100, 10 + 48 * state->rs->bc->board->width);
+	state->draw_area_height = std::max(state->height - 25, 10 + 48 * state->rs->bc->board->height);
 	gtk_widget_set_size_request(state->draw_area, state->draw_area_width, state->draw_area_height);
 }
 
@@ -253,12 +295,53 @@ static gboolean tick_board(State *state){
 	if(state->rs->prepared_board_calls.size() != 0){
 		state->rs_stack.push(state->rs);
 		state->rs = state->rs->prepared_board_calls[0];
+
+		cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state->swindow_height + 18);
+		cairo_t *tmp = cairo_create(surf);
+		// copy over
+		cairo_set_line_width(tmp, 0);
+		cairo_rectangle(tmp, 0, 18, 90, state->swindow_height);
+		cairo_set_source_surface(tmp, state->swindow_surface, 0, 18);
+		cairo_paint(tmp);
+		// add new board
+		draw_text_cn16(tmp, state->cn16_surface, state->rs->bc->board->short_name.substr(0, 7), 0, 0);
+		// cleanup
+		cairo_destroy(tmp);
+		cairo_surface_destroy(state->swindow_surface);
+		state->swindow_surface = surf;
+		state->swindow_height += 18;
+		gtk_widget_queue_draw(state->sdraw_area);
+
 		not_finished = true;
 	}else if(state->rs->is_finished()){
 		state->rs->finalize();
 		if(state->rs_stack.size() == 0){
+			cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state->swindow_height - 16);
+			cairo_t *tmp = cairo_create(surf);
+			cairo_surface_t *ssurf = cairo_surface_create_for_rectangle(state->swindow_surface, 0, 16, 90, state->swindow_height);
+			cairo_set_source_surface(tmp, ssurf, 0, 0);
+			cairo_paint(tmp);
+			cairo_surface_destroy(ssurf);
+			cairo_destroy(tmp);
+			cairo_surface_destroy(state->swindow_surface);
+			state->swindow_surface = surf;
+			state->swindow_height -= 16;
+			gtk_widget_queue_draw(state->sdraw_area);
+
 			not_finished = false;
 		}else{
+			cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state->swindow_height - 18);
+			cairo_t *tmp = cairo_create(surf);
+			cairo_surface_t *ssurf = cairo_surface_create_for_rectangle(state->swindow_surface, 0, 18, 90, state->swindow_height);
+			cairo_set_source_surface(tmp, ssurf, 0, 0);
+			cairo_paint(tmp);
+			cairo_surface_destroy(ssurf);
+			cairo_destroy(tmp);
+			cairo_surface_destroy(state->swindow_surface);
+			state->swindow_surface = surf;
+			state->swindow_height -= 18;
+			gtk_widget_queue_draw(state->sdraw_area);
+
 			BoardCall::RunState *top = state->rs_stack.top();
 			top->prepared_board_calls.erase(top->prepared_board_calls.begin());
 			top->processed_board_calls.push_back(state->rs);

@@ -126,6 +126,24 @@ cairo_surface_t *create_printables_surface(){
 	return create_text_surface(512, 1024, text);
 }
 
+cairo_surface_t *create_cn16_surface(){
+	const char *text = 
+"<span font='Courier New 16' font_weight='heavy'><span foreground='white'>\
+&#032;&#033;&#034;&#035;&#036;&#037;&#038;&#039;&#040;\n\
+&#041;&#042;&#043;&#044;&#045;&#046;&#047;&#048;&#049;\n\
+&#050;&#051;&#052;&#053;&#054;&#055;&#056;&#057;&#058;\n\
+&#059;&#060;&#061;&#062;&#063;&#064;&#065;&#066;&#067;\n\
+&#068;&#069;&#070;&#071;&#072;&#073;&#074;&#075;&#076;\n\
+&#077;&#078;&#079;&#080;&#081;&#082;&#083;&#084;&#085;\n\
+&#086;&#087;&#088;&#089;&#090;&#091;&#092;&#093;&#094;\n\
+&#095;&#096;&#097;&#098;&#099;&#100;&#101;&#102;&#103;\n\
+&#104;&#105;&#106;&#107;&#108;&#109;&#110;&#111;&#112;\n\
+&#113;&#114;&#115;&#116;&#117;&#118;&#119;&#120;&#121;\n\
+&#122;&#123;&#124;&#125;&#126;\
+</span></span>";
+	return create_text_surface(128, 256, text);
+}
+
 cairo_surface_t *create_marble_surface(){
 	cairo_t *scr;
 	cairo_surface_t *surf;
@@ -242,4 +260,18 @@ void draw_marble(cairo_t *cr, cairo_surface_t *printables, cairo_surface_t *marb
 	cairo_set_source_surface(cr, ssurf, x + 7, y + 8);
 	cairo_paint(cr);
 	cairo_surface_destroy(ssurf);
+}
+
+void draw_text_cn16(cairo_t *cr, cairo_surface_t *cn16, std::string text, double x, double y){
+	for(const auto &c : text){
+		int t = ((32 <= c && c < 127) ? (c - 32) : 0);
+		int tx = 13 * (t % 9), ty = 23 * (t / 9);
+
+		cairo_surface_t *ssurf = cairo_surface_create_for_rectangle(cn16, tx, ty + 3, 13, 16);
+		cairo_set_source_surface(cr, ssurf, x, y);
+		cairo_paint(cr);
+		cairo_surface_destroy(ssurf);
+
+		x += 13;
+	}
 }
