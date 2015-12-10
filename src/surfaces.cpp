@@ -117,7 +117,7 @@ cairo_surface_t *create_printables_surface(){
  &#113;  &#114;  &#115;  &#116;  &#117;  &#118;  &#119;  &#120;  &#121;\n\
  &#122;  &#123;  &#124;  &#125;  &#126;\
 </span>\n\
-<span foreground='#BABAFF' font='Courier New 22' font_weight='heavy'>\
+<span foreground='#FFFFFF' font='Courier New 22' font_weight='heavy'>\
 0  1  2  3  4  5  6  7  8\n\
 9  A  B  C  D  E  F\n\
  0  1  2  3  4  5  6  7  8\n\
@@ -151,9 +151,9 @@ cairo_surface_t *create_marble_surface(){
 
 	surf  = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 48, 48);
 	scr = cairo_create(surf);
-	pat = cairo_pattern_create_radial(40, 0, 10, 26, 20, 34.415);
-	cairo_pattern_add_color_stop_rgba(pat, 1, 0.2, 0.0, 0.2, 1);
-	cairo_pattern_add_color_stop_rgba(pat, 0, 0.8, 0.5, 0.8, 1);
+	pat = cairo_pattern_create_radial(38, 7, 7, 36, 8, 30);
+	cairo_pattern_add_color_stop_rgba(pat, 0.8, 0, 144/255., 181/255., 1);
+	cairo_pattern_add_color_stop_rgba(pat, 0, 0.6, 0.8, 1, 1);
 
 	cairo_arc(scr, 24, 24, 22, 0, 2 * M_PI);
 	cairo_clip(scr);
