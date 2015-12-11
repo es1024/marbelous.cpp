@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <forward_list>
 #include <string>
+#include <tuple>
 #include <vector>
 
 class Board;
@@ -62,6 +63,14 @@ struct BoardCall{
 
 		std::vector<RunState *> prepared_board_calls;
 		std::vector<RunState *> processed_board_calls;
+
+		#if VMARBELOUS == 1
+			// stores marbles that didn't jump around
+			// format: 000000DD XXXXXXXX
+			// DD: 00/no motion, 01/left, 02/right, 03/down
+			// XX: value
+			std::vector<std::pair<uint16_t, uint32_t>> moved_marbles;
+		#endif
 
 		private:
 			// internal states for when the board is running + not compiled

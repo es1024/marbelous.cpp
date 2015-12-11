@@ -33,6 +33,8 @@ struct State {
 	cairo_surface_t *devices_surface, *printables_surface, *marble_surface, *cn16_surface;
 	GtkWidget *window, *mwindow, *grid, *bwindow, *swindow, *cwindow, *draw_area, *sdraw_area;
 	cairo_surface_t *swindow_surface;
+
+	int movement_frame; // 0 = ticking, 1+ = marbles are moving
 };
 
 static gboolean on_bdraw_event(GtkWidget *, cairo_t *, State *);
@@ -146,6 +148,7 @@ int main(int argc, char *argv[]){
 	state.draw_area = gtk_drawing_area_new();
 	state.sdraw_area = gtk_drawing_area_new();
 	state.swindow_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state.swindow_height);
+	state.movement_frame = 0;
 	// draw "MB" to swindow_surface...
 	cairo_t *tmp = cairo_create(state.swindow_surface);
 	draw_text_cn16(tmp, state.cn16_surface, "MB", 0, 0);
@@ -155,7 +158,7 @@ int main(int argc, char *argv[]){
 	g_signal_connect(G_OBJECT(state.sdraw_area), "draw", G_CALLBACK(on_sdraw_event), &state);
 	g_signal_connect(state.window, "check-resize", G_CALLBACK(on_resize_event), &state);
 	g_signal_connect(state.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-	g_timeout_add(500, GSourceFunc(tick_board), &state);
+	g_timeout_add(60, GSourceFunc(tick_board), &state);
 
 	gtk_window_set_position(GTK_WINDOW(state.window), GTK_WIN_POS_CENTER);
 	gtk_window_set_default_size(GTK_WINDOW(state.window), 800, 600);
@@ -246,15 +249,33 @@ static gboolean on_bdraw_event(GtkWidget *, cairo_t *cr, State *state){
 	}
 
 	// marbles
-	for(int y = 0; y < board->height; ++y){
-		for(int x = 0; x < board->width; ++x){
-			int index = board->index(x, y);
-			uint16_t value = state->rs->cur_marbles[index];
-			if(value & 0xFF00)
-				draw_marble(cr, state->printables_surface, state->marble_surface, value & 0xFF, offx + 48 * x, offy + 48 * y);
+	if(state->movement_frame == 0){
+		for(int y = 0; y < board->height; ++y){
+			for(int x = 0; x < board->width; ++x){
+				int index = board->index(x, y);
+				uint16_t value = state->rs->cur_marbles[index];
+				if(value & 0xFF00)
+					draw_marble(cr, state->printables_surface, state->marble_surface, value & 0xFF, offx + 48 * x, offy + 48 * y);
+			}
+		}
+	}else{
+		// draw marbles in movement...
+		const double offset = 48.0 / 5;
+		for(const auto m : state->rs->moved_marbles){
+			uint16_t dir = (m.first & 0xFF00) >> 8;
+			uint16_t x = offx + 48 * (m.second % board->width);
+			uint16_t y = offy + 48 * (m.second / board->width);
+			uint8_t value = (m.first & 0xFF);
+			if(dir == 0) // no move
+				draw_marble(cr, state->printables_surface, state->marble_surface, value, x, y); 
+			else if(dir == 1) // left
+				draw_marble(cr, state->printables_surface, state->marble_surface, value, x - offset * state->movement_frame, y);
+			else if(dir == 2) // right
+				draw_marble(cr, state->printables_surface, state->marble_surface, value, x + offset * state->movement_frame, y);
+			else // down
+				draw_marble(cr, state->printables_surface, state->marble_surface, value, x, y + offset * state->movement_frame);
 		}
 	}
-
 	return FALSE;
 }
 
@@ -292,7 +313,16 @@ static void on_resize_event(GtkWidget *window, State *state){
 
 static gboolean tick_board(State *state){
 	bool not_finished;
-	if(state->rs->prepared_board_calls.size() != 0){
+
+	if(state->movement_frame == 5){
+		state->movement_frame = 0;
+		state->rs->moved_marbles.clear();
+	}
+
+	if(state->movement_frame != 0){
+		++state->movement_frame;
+		not_finished = true;
+	}else if(state->rs->prepared_board_calls.size() != 0){
 		state->rs_stack.push(state->rs);
 		state->rs = state->rs->prepared_board_calls[0];
 
@@ -351,11 +381,12 @@ static gboolean tick_board(State *state){
 		}
 	}else if(state->rs->processed_board_calls.size() != 0){
 		state->rs->tick();
+		++state->movement_frame;
 		not_finished = true;
 	}else{
 		state->rs->prepare_board_calls();
 		if(state->rs->prepared_board_calls.size() == 0)
-			state->rs->tick();
+			state->rs->tick(), ++state->movement_frame;
 		not_finished = true;
 	}
 	std::fflush(stdout);

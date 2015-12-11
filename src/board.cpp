@@ -268,6 +268,22 @@ void BoardCall::RunState::set_marble(uint32_t loc,
 	uint16_t x, y;
 	y = loc / bc->board->width;
 	x = loc % bc->board->width;
+
+	#if VMARBELOUS == 1
+		if((!x_disp || !y_disp) && (y_disp <= 1 && x_disp >= -1 && x_disp <= 1)){
+			uint16_t dir_mask;
+			if(y_disp == 1)
+				dir_mask = 0x0300;
+			else if(x_disp == 1)
+				dir_mask = 0x0200;
+			else if(x_disp == -1)
+				dir_mask = 0x0100;
+			else
+				dir_mask = 0x0000;
+			moved_marbles.push_back({dir_mask | (value & 255), loc});
+		}
+	#endif
+
 	if(x + x_disp >= bc->board->width || x + x_disp < 0){
 		if(cylindrical){
 			if(x + x_disp >= bc->board->width){
@@ -288,6 +304,8 @@ void BoardCall::RunState::set_marble(uint32_t loc,
 		stdout_values[x] = value | 0xFF00;
 		return;
 	}
+
+
 	loc = bc->board->index(x + x_disp, y + y_disp);
 	next_marbles[loc] = ((next_marbles[loc] + value) & 255) | 0xFF00;
 
