@@ -14,8 +14,19 @@ Marbelous was conceived in [Programming Puzzles & Code Golf's chat room (The Nin
 
 For more examples of Marbelous code, see the examples directory in the [Python interpreter repo](https://github.com/marbelous-lang/marbelous.py) (written by sparr), or head over to [Programming Puzzles & Code Golf Stack Exchange](http://codegolf.stackexchange.com) and search `Marbelous`.
 
-##### Compiling the Interpreter
-If you have `make` on your system, just run `make all`. Alternatively, you can just compile and link all the `.cpp` files in source (no external libraries are used). Note that this interpreter is written to C++11,  so you may need to pass a flag to your compiler to specify this (for gcc: `--std=c++11`).
+##### Compiling the Interpreter (command line)
+If you have `make` on your system, just run `make bin/marbelous`. Alternatively, you can just compile and link all the `.cpp` files in source (no external libraries are used for the interpreter). Note that this interpreter is written to C++11,  so you may need to pass a flag to your compiler to specify this (for gcc: `--std=c++11`).
+
+##### Compiling the Interpreter (GUI)
+The GUI version (which shows the marbles moving throughout the board: see below) requires GTK+ 3.0, FreeType 2, Pango, and Cairo.
+
+Run `make bin/vmarbelous` to compile. Note that this interpreter is written to C++11,  so you may need to pass a flag to your compiler to specify this (for gcc: `--std=c++11`).
+
+If you are on Windows, I recommend using [MSYS](http://sourceforge.net/p/mingw-w64/wiki2/MSYS/) to compile marbelous.cpp.
+
+vmarbelous printing an arch of ascending/descending numbers ([written by Sparr](http://codegolf.stackexchange.com/a/52073/29611)):
+
+![](http://i.stack.imgur.com/Jyibf.gif)
 
 ##### Interpreter Options
 The C++ interpreter has the following options:
