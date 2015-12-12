@@ -32,8 +32,11 @@ struct State {
 	std::stack<BoardCall::RunState *> rs_stack;
 	cairo_surface_t *devices_surface, *printables_surface, *marble_surface, *cn16_surface;
 	GtkWidget *window, *mwindow, *grid, *lgrid, *bwindow, *swindow, *cgrid, *draw_area, *sdraw_area;
+	GtkWidget *stdout_window, *stdout_label;
 	GtkWidget *play_toggle, *tick_once, *finish;
 	cairo_surface_t *swindow_surface;
+
+	std::string pstdout;
 
 	int movement_frame; // 0 = ticking, 1+ = marbles are moving
 	bool autoplay;
@@ -41,6 +44,7 @@ struct State {
 
 static void start_board_movement(State *);
 static void stop_board_movement(State *);
+static void flush_stdout(State *);
 static gboolean on_bdraw_event(GtkWidget *, cairo_t *, State *);
 static gboolean on_sdraw_event(GtkWidget *, cairo_t *, State *);
 static void on_resize_event(GtkWidget *, State *);
@@ -127,6 +131,8 @@ int main(int argc, char *argv[]){
 		}
 	}
 
+	stdout_write = _stdout_save;	
+
 	// GTK window setup
 	gtk_init(nullptr, nullptr);
 
@@ -135,7 +141,7 @@ int main(int argc, char *argv[]){
 	state.width = 800;
 	state.height = 600;
 	state.draw_area_width = std::max(700, 10 + 48 * (boards[0].width + 2));
-	state.draw_area_height = std::max(550, 10 + 48 * (boards[0].height + 1));
+	state.draw_area_height = std::max(544, 10 + 48 * (boards[0].height + 1));
 	state.swindow_height = 16;
 	state.rs = bc.new_run_state(inputs);
 	state.devices_surface = create_devices_surface();
@@ -152,8 +158,18 @@ int main(int argc, char *argv[]){
 	state.draw_area = gtk_drawing_area_new();
 	state.sdraw_area = gtk_drawing_area_new();
 	state.swindow_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state.swindow_height);
+	state.stdout_window = gtk_scrolled_window_new(NULL, NULL);
+	state.stdout_label = gtk_label_new(NULL);
+	state.pstdout = "";
 	state.movement_frame = -1;
 	state.autoplay = false;
+
+	gtk_widget_set_size_request(state.stdout_window, 700, 48);
+	gtk_widget_set_halign(state.stdout_label, GTK_ALIGN_START);
+	gtk_label_set_selectable(GTK_LABEL(state.stdout_label), true);
+	gtk_label_set_yalign(GTK_LABEL(state.stdout_label), 0.0);
+	gtk_label_set_markup(GTK_LABEL(state.stdout_label), "<span font='Courier New 12'><b>STDOUT: </b>\n</span>");
+	gtk_container_add(GTK_CONTAINER(state.stdout_window), state.stdout_label);
 
 	state.play_toggle = gtk_button_new_with_mnemonic("_Play");
 	state.tick_once = gtk_button_new_with_mnemonic("_Tick");
@@ -180,15 +196,16 @@ int main(int argc, char *argv[]){
 	gtk_window_set_position(GTK_WINDOW(state.window), GTK_WIN_POS_CENTER);
 	gtk_window_set_default_size(GTK_WINDOW(state.window), 800, 600);
 	gtk_window_set_title(GTK_WINDOW(state.window), "Visual Marbelous");
-	gtk_widget_set_size_request(state.bwindow, 700, 572);
+	gtk_widget_set_size_request(state.bwindow, 700, 524);
 	gtk_widget_set_size_request(state.draw_area, state.draw_area_width, state.draw_area_height);
 	gtk_widget_set_size_request(state.swindow, 100, 600);
 	gtk_container_add(GTK_CONTAINER(state.bwindow), state.draw_area);
 	gtk_container_add(GTK_CONTAINER(state.swindow), state.sdraw_area);
 	gtk_grid_attach(GTK_GRID(state.lgrid), state.bwindow, 0, 0, 1, 1);
-	gtk_grid_attach(GTK_GRID(state.lgrid), state.cgrid, 0, 1, 1, 2);
+	gtk_grid_attach_next_to(GTK_GRID(state.lgrid), state.stdout_window, state.bwindow, GTK_POS_BOTTOM, 1, 1);
+	gtk_grid_attach_next_to(GTK_GRID(state.lgrid), state.cgrid, state.stdout_window, GTK_POS_BOTTOM, 1, 1);
 	gtk_grid_attach(GTK_GRID(state.grid), state.lgrid, 0, 0, 1, 1);
-	gtk_grid_attach(GTK_GRID(state.grid), state.swindow, 1, 0, 2, 1);
+	gtk_grid_attach_next_to(GTK_GRID(state.grid), state.swindow, state.lgrid, GTK_POS_RIGHT, 1, 1);
 	// extra scrolled window to allow downsizing
 	gtk_container_add(GTK_CONTAINER(state.mwindow), state.grid);
 	gtk_container_add(GTK_CONTAINER(state.window), state.mwindow);
@@ -207,16 +224,6 @@ int main(int argc, char *argv[]){
 
 	// BoardCall::RunState *rs = bc.call(inputs);
 
-	// if(options[OPT_VERBOSE].count() > 0){
-	// 	std::fputs("Combined STDOUT: ", stdout);
-	// 	for(uint8_t c : stdout_get_saved()){
-	// 		_stdout_writehex(c);
-	// 	}
-	// 	std::fputc('\n', stdout);
-	// }
-
-	// prepare_io(false);
-
 	// int res = (rs->outputs[0] >> 8) ? rs->outputs[0] & 0xFF : 0;
 
 	// delete rs;
@@ -233,6 +240,17 @@ static void stop_board_movement(State *state){
 	gtk_widget_set_sensitive(state->tick_once, true);
 	gtk_widget_set_sensitive(state->finish, true);
 	gtk_button_set_label(GTK_BUTTON(state->play_toggle), "_Play");
+}
+
+static void flush_stdout(State *state){
+	const auto &outv = stdout_get_saved();
+	if(outv.size() > state->pstdout.length()){
+		for(int i = state->pstdout.length(), len = outv.size(); i < len; ++i)
+			state->pstdout += outv[i];
+		gtk_label_set_markup(GTK_LABEL(state->stdout_label), ("<span font='Courier New 12'><b>STDOUT: </b>\n" + state->pstdout + "</span>").c_str());
+		GtkAdjustment *adj = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(state->stdout_window));
+		gtk_adjustment_set_value(adj, gtk_adjustment_get_upper(adj));		
+	}
 }
 
 static gboolean on_bdraw_event(GtkWidget *, cairo_t *cr, State *state){
@@ -335,11 +353,11 @@ static gboolean on_sdraw_event(GtkWidget *, cairo_t *cr, State *state){
 
 static void on_resize_event(GtkWidget *window, State *state){
 	gtk_window_get_size(GTK_WINDOW(window), &state->width, &state->height);
-	gtk_widget_set_size_request(state->bwindow, state->width - 100, state->height - 28);
+	gtk_widget_set_size_request(state->bwindow, state->width - 100, state->height - 76);
 	gtk_widget_set_size_request(state->swindow, 100, state->height);
 
 	state->draw_area_width = std::max(state->width - 100, 10 + 48 * (state->rs->bc->board->width + 2));
-	state->draw_area_height = std::max(state->height - 28, 10 + 48 * (state->rs->bc->board->height + 1));
+	state->draw_area_height = std::max(state->height - 76, 10 + 48 * (state->rs->bc->board->height + 1));
 	gtk_widget_set_size_request(state->draw_area, state->draw_area_width, state->draw_area_height);
 }
 
@@ -418,7 +436,7 @@ static gboolean tick_board(State *state){
 			state->rs->tick(), ++state->movement_frame;
 		not_finished = true;
 	}
-	std::fflush(stdout);
+	flush_stdout(state);
 	gtk_widget_queue_draw(state->draw_area);
 
 	if(!not_finished)
@@ -468,7 +486,7 @@ static void finish_clicked(GtkButton *, State *state){
 		}
 		state->rs->finalize();
 
-		std::fflush(stdout);
+		flush_stdout(state);
 		gtk_widget_queue_draw(state->draw_area);
 	}
 }
