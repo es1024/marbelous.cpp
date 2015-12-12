@@ -15,10 +15,17 @@ enum OptionsType{
 	OPT_TYPE_ENABLE,
 };
 const option::Descriptor usage[] = {
+#if VMARBELOUS == 1
+	{OPT_UNKNOWN, 0, "", "" , option::Arg::None, "Usage: vmarbelous [options] file.mbl [arguments]\n"
+	                                             "Options: "},
+#else
 	{OPT_UNKNOWN, 0, "", "", option::Arg::None, "Usage: marbelous [options] file.mbl [arguments]\n"
 	                                            "Options: "},
+#endif // VMARBELOUS == 1
 	{OPT_HELP, 0, "", "help", option::Arg::None, "  --help  \tDisplay this information"},
+#if VMARBELOUS == 0
 	{OPT_VERBOSE, 0, "v", "", option::Arg::None, "  -v[vv]  \tSet verbosity level, default 0"},
+#endif // VMARBELOUS == 0
 	{OPT_CYLINDRICAL, OPT_TYPE_ENABLE, "", "enable-cylindrical", option::Arg::None, 
 	    "  --enable-cylindrical  \tEnable or disable cylindrical boards (default disabled)"},
 	{OPT_CYLINDRICAL, OPT_TYPE_DISABLE, "", "disable-cylindrical", option::Arg::None, "  --disable-cylindrical"},

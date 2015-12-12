@@ -19,7 +19,7 @@
 #include "surfaces.h"
 
 option::Option *options;
-int verbosity;
+int verbosity = 0;
 bool cylindrical;
 
 struct State {
@@ -101,7 +101,6 @@ int main(int argc, char *argv[]){
 	}
 
 	// misc options
-	verbosity = options[OPT_VERBOSE].count();
 	cylindrical = (options[OPT_CYLINDRICAL].last()->type() == OPT_TYPE_ENABLE);
 
 	BoardCall bc{&boards[0], 0, 0};
@@ -126,11 +125,6 @@ int main(int argc, char *argv[]){
 			}
 			inputs[i] = value & 255;
 		}
-	}
-
-	// if verbose, stall printing to end..
-	if(options[OPT_VERBOSE].count() > 0){
-		stdout_write = _stdout_save;
 	}
 
 	// GTK window setup
