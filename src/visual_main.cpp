@@ -367,7 +367,7 @@ static gboolean tick_board(State *state){
 		not_finished = true;
 	}else if(state->rs->prepared_board_calls.size() != 0){
 		state->movement_frame = 6;
-		
+
 		state->rs_stack.push(state->rs);
 		state->rs = state->rs->prepared_board_calls[0];
 
@@ -458,7 +458,16 @@ static void tick_once_clicked(GtkButton *, State *state){
 static void finish_clicked(GtkButton *, State *state){
 	if(state->movement_frame == -1 && !state->autoplay){
 		// run to completion
-		while(state->rs->tick(false));
+		while(state->rs->prepared_board_calls.size() > 0){
+			BoardCall::RunState *rs = state->rs->prepared_board_calls[0];
+			while(rs->tick(false));
+			rs->finalize();
+
+			state->rs->processed_board_calls.push_back(rs);
+			state->rs->prepared_board_calls.erase(state->rs->prepared_board_calls.begin());
+		}
+		if(state->rs->tick(true))
+			while(state->rs->tick(false));
 
 		state->rs->finalize();
 
