@@ -1,9 +1,9 @@
 #include <ctime>
 #include <cstdio>
 #include <cstdlib>
+#include <deque>
 #include <iostream>
 #include <map>
-#include <stack>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -27,9 +27,9 @@ struct State {
 	int draw_area_width;
 	int draw_area_height;
 	int swindow_height;
-	BoardCall::RunState *rs; // current runstate
+	BoardCall::RunState *rs; // current runstate (being shown)
 	// stack of runstates...
-	std::stack<BoardCall::RunState *> rs_stack;
+	std::deque<BoardCall::RunState *> rs_stack;
 	cairo_surface_t *devices_surface, *printables_surface, *marble_surface, *cn16_surface;
 	GtkWidget *window, *mwindow, *grid, *lgrid, *bwindow, *swindow, *cgrid, *draw_area, *sdraw_area;
 	GtkWidget *stdout_window, *stdout_label;
@@ -37,6 +37,8 @@ struct State {
 	cairo_surface_t *swindow_surface;
 
 	std::string pstdout;
+
+	int active_frame;
 
 	int movement_frame; // 0 = ticking, 1+ = marbles are moving
 	bool autoplay;
@@ -49,7 +51,7 @@ static gboolean on_bdraw_event(GtkWidget *, cairo_t *, State *);
 static gboolean on_sdraw_event(GtkWidget *, cairo_t *, State *);
 static void on_resize_event(GtkWidget *, State *);
 static gboolean tick_board(State *);
-
+static gboolean stack_clicked(GtkWidget *, GdkEvent *, State *);
 static void play_toggle_clicked(GtkButton *, State *);
 static void tick_once_clicked(GtkButton *, State *);
 static void finish_clicked(GtkButton *, State *);
@@ -144,6 +146,7 @@ int main(int argc, char *argv[]){
 	state.draw_area_height = std::max(544, 10 + 48 * (boards[0].height + 1));
 	state.swindow_height = 16;
 	state.rs = bc.new_run_state(inputs);
+	state.rs_stack.push_front(state.rs);
 	state.devices_surface = create_devices_surface();
 	state.printables_surface = create_printables_surface();
 	state.marble_surface = create_marble_surface();
@@ -161,6 +164,7 @@ int main(int argc, char *argv[]){
 	state.stdout_window = gtk_scrolled_window_new(NULL, NULL);
 	state.stdout_label = gtk_label_new(NULL);
 	state.pstdout = "";
+	state.active_frame = 0;
 	state.movement_frame = -1;
 	state.autoplay = false;
 
@@ -183,6 +187,8 @@ int main(int argc, char *argv[]){
 	g_signal_connect(G_OBJECT(state.play_toggle), "clicked", G_CALLBACK(play_toggle_clicked), &state);
 	g_signal_connect(G_OBJECT(state.tick_once), "clicked", G_CALLBACK(tick_once_clicked), &state);
 	g_signal_connect(G_OBJECT(state.finish), "clicked", G_CALLBACK(finish_clicked), &state);
+	gtk_widget_add_events(state.sdraw_area, GDK_BUTTON_PRESS_MASK);
+	g_signal_connect(G_OBJECT(state.sdraw_area), "button-press-event", G_CALLBACK(stack_clicked), &state);
 	
 	g_signal_connect(G_OBJECT(state.draw_area), "draw", G_CALLBACK(on_bdraw_event), &state);
 	g_signal_connect(G_OBJECT(state.sdraw_area), "draw", G_CALLBACK(on_sdraw_event), &state);
@@ -345,7 +351,7 @@ static gboolean on_sdraw_event(GtkWidget *, cairo_t *cr, State *state){
 	cairo_new_path(cr);
 	cairo_set_line_width(cr, 1.0);
 	cairo_set_source_rgb(cr, 0.9, 1.0, 0.9);
-	cairo_rectangle(cr, 4, 4, 91, 17);
+	cairo_rectangle(cr, 4, 4 - 18 * state->active_frame, 91, 17);
 	cairo_stroke(cr);
 
 	return FALSE;
@@ -380,8 +386,8 @@ static gboolean tick_board(State *state){
 	}else if(state->rs->prepared_board_calls.size() != 0){
 		state->movement_frame = 6;
 
-		state->rs_stack.push(state->rs);
 		state->rs = state->rs->prepared_board_calls[0];
+		state->rs_stack.push_front(state->rs);
 
 		cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state->swindow_height + 18);
 		cairo_t *tmp = cairo_create(surf);
@@ -402,7 +408,7 @@ static gboolean tick_board(State *state){
 		not_finished = true;
 	}else if(state->rs->is_finished()){
 		state->rs->finalize();
-		if(state->rs_stack.size() == 0){
+		if(state->rs_stack.size() == 1){
 			not_finished = false;
 		}else{
 			state->movement_frame = 6;
@@ -419,10 +425,10 @@ static gboolean tick_board(State *state){
 			state->swindow_height -= 18;
 			gtk_widget_queue_draw(state->sdraw_area);
 
-			BoardCall::RunState *top = state->rs_stack.top();
+			state->rs_stack.pop_front();
+			BoardCall::RunState *top = state->rs_stack.front();
 			top->prepared_board_calls.erase(top->prepared_board_calls.begin());
 			top->processed_board_calls.push_back(state->rs);
-			state->rs_stack.pop();
 			state->rs = top;
 			not_finished = true;
 		}
@@ -448,9 +454,12 @@ static gboolean tick_board(State *state){
 static void play_toggle_clicked(GtkButton *button, State *state){
 	if(!state->autoplay){
 		state->autoplay = true;
+		state->rs = state->rs_stack.front();
+		state->active_frame = 0;
 		gtk_widget_set_sensitive(state->tick_once, false);
 		gtk_widget_set_sensitive(state->finish, false);
 		gtk_button_set_label(button, "_Pause");
+		gtk_widget_queue_draw(state->sdraw_area);
 		start_board_movement(state);
 	}else{
 		state->autoplay = false;
@@ -460,9 +469,12 @@ static void play_toggle_clicked(GtkButton *button, State *state){
 
 static void tick_once_clicked(GtkButton *, State *state){
 	if(state->movement_frame == -1 && !state->autoplay){
+		state->rs = state->rs_stack.front();
+		state->active_frame = 0;
 		gtk_widget_set_sensitive(state->play_toggle, false);
 		gtk_widget_set_sensitive(state->tick_once, false);
 		gtk_widget_set_sensitive(state->finish, false);
+		gtk_widget_queue_draw(state->sdraw_area);
 		start_board_movement(state);
 	}
 }
@@ -470,6 +482,8 @@ static void tick_once_clicked(GtkButton *, State *state){
 static void finish_clicked(GtkButton *, State *state){
 	if(state->movement_frame == -1 && !state->autoplay){
 		// run to completion
+		state->rs = state->rs_stack.front();
+		state->active_frame = 0;
 		while(state->rs->prepared_board_calls.size() > 0){
 			BoardCall::RunState *rs = state->rs->prepared_board_calls[0];
 			while(rs->tick(false));
@@ -487,6 +501,21 @@ static void finish_clicked(GtkButton *, State *state){
 		state->rs->finalize();
 
 		flush_stdout(state);
+		gtk_widget_queue_draw(state->sdraw_area);
 		gtk_widget_queue_draw(state->draw_area);
 	}
+}
+
+static gboolean stack_clicked(GtkWidget *, GdkEvent *event, State *state){
+	double y = ((GdkEventButton*)event)->y;
+	// convert to stack index if applicable
+	y -= 5; // top margin = 5px
+	unsigned index = ((int)y / 18);
+	if(index < state->rs_stack.size()){
+		state->active_frame = -index;
+		state->rs = state->rs_stack[-state->active_frame];
+		gtk_widget_queue_draw(state->sdraw_area);
+		gtk_widget_queue_draw(state->draw_area);
+	}
+	return false;
 }
