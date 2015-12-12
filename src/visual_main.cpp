@@ -366,6 +366,8 @@ static gboolean tick_board(State *state){
 		++state->movement_frame;
 		not_finished = true;
 	}else if(state->rs->prepared_board_calls.size() != 0){
+		state->movement_frame = 6;
+		
 		state->rs_stack.push(state->rs);
 		state->rs = state->rs->prepared_board_calls[0];
 
