@@ -31,16 +31,22 @@ struct State {
 	// stack of runstates...
 	std::stack<BoardCall::RunState *> rs_stack;
 	cairo_surface_t *devices_surface, *printables_surface, *marble_surface, *cn16_surface;
-	GtkWidget *window, *mwindow, *grid, *bwindow, *swindow, *cwindow, *draw_area, *sdraw_area;
+	GtkWidget *window, *mwindow, *grid, *lgrid, *bwindow, *swindow, *cgrid, *draw_area, *sdraw_area;
+	GtkWidget *play_toggle, *tick_once;
 	cairo_surface_t *swindow_surface;
 
 	int movement_frame; // 0 = ticking, 1+ = marbles are moving
+	bool autoplay;
 };
 
+static void start_board_movement(State *);
 static gboolean on_bdraw_event(GtkWidget *, cairo_t *, State *);
 static gboolean on_sdraw_event(GtkWidget *, cairo_t *, State *);
 static void on_resize_event(GtkWidget *, State *);
 static gboolean tick_board(State *);
+
+static void play_toggle_clicked(GtkButton *, State *);
+static void tick_once_clicked(GtkButton *, State *);
 
 int main(int argc, char *argv[]){
 	// process arguments
@@ -132,8 +138,8 @@ int main(int argc, char *argv[]){
 	// use largest board width instead
 	state.width = 800;
 	state.height = 600;
-	state.draw_area_width = std::max(700, 10 + 48 * boards[0].width);
-	state.draw_area_height = std::max(575, 10 + 48 * boards[0].height);
+	state.draw_area_width = std::max(700, 10 + 48 * (boards[0].width + 2));
+	state.draw_area_height = std::max(550, 10 + 48 * (boards[0].height + 1));
 	state.swindow_height = 16;
 	state.rs = bc.new_run_state(inputs);
 	state.devices_surface = create_devices_surface();
@@ -143,33 +149,47 @@ int main(int argc, char *argv[]){
 	state.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	state.mwindow = gtk_scrolled_window_new(NULL, NULL);
 	state.grid = gtk_grid_new();
+	state.lgrid = gtk_grid_new();
 	state.bwindow = gtk_scrolled_window_new(NULL, NULL);
 	state.swindow = gtk_scrolled_window_new(NULL, NULL);
+	state.cgrid = gtk_grid_new();
 	state.draw_area = gtk_drawing_area_new();
 	state.sdraw_area = gtk_drawing_area_new();
 	state.swindow_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state.swindow_height);
-	state.movement_frame = 0;
+	state.movement_frame = -1;
+	state.autoplay = false;
+
+	state.play_toggle = gtk_button_new_with_mnemonic("_Play");
+	state.tick_once = gtk_button_new_with_mnemonic("_Tick");
+
 	// draw "MB" to swindow_surface...
 	cairo_t *tmp = cairo_create(state.swindow_surface);
 	draw_text_cn16(tmp, state.cn16_surface, "MB", 0, 0);
 	cairo_destroy(tmp);
 
+	g_signal_connect(G_OBJECT(state.play_toggle), "clicked", G_CALLBACK(play_toggle_clicked), &state);
+	g_signal_connect(G_OBJECT(state.tick_once), "clicked", G_CALLBACK(tick_once_clicked), &state);
+	
 	g_signal_connect(G_OBJECT(state.draw_area), "draw", G_CALLBACK(on_bdraw_event), &state);
 	g_signal_connect(G_OBJECT(state.sdraw_area), "draw", G_CALLBACK(on_sdraw_event), &state);
 	g_signal_connect(state.window, "check-resize", G_CALLBACK(on_resize_event), &state);
 	g_signal_connect(state.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-	g_timeout_add(60, GSourceFunc(tick_board), &state);
+
+	gtk_grid_attach(GTK_GRID(state.cgrid), state.play_toggle, 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(state.cgrid), state.tick_once, 1, 0, 2, 1);
 
 	gtk_window_set_position(GTK_WINDOW(state.window), GTK_WIN_POS_CENTER);
 	gtk_window_set_default_size(GTK_WINDOW(state.window), 800, 600);
 	gtk_window_set_title(GTK_WINDOW(state.window), "Visual Marbelous");
-	gtk_widget_set_size_request(state.bwindow, 700, 575);
+	gtk_widget_set_size_request(state.bwindow, 700, 572);
 	gtk_widget_set_size_request(state.draw_area, state.draw_area_width, state.draw_area_height);
 	gtk_widget_set_size_request(state.swindow, 100, 600);
 	gtk_container_add(GTK_CONTAINER(state.bwindow), state.draw_area);
 	gtk_container_add(GTK_CONTAINER(state.swindow), state.sdraw_area);
-	gtk_grid_attach(GTK_GRID(state.grid), state.bwindow, 0, 0, 1, 1);
-	gtk_grid_attach(GTK_GRID(state.grid), state.swindow, 1, 0, 2, 2);
+	gtk_grid_attach(GTK_GRID(state.lgrid), state.bwindow, 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(state.lgrid), state.cgrid, 0, 1, 1, 2);
+	gtk_grid_attach(GTK_GRID(state.grid), state.lgrid, 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(state.grid), state.swindow, 1, 0, 2, 1);
 	// extra scrolled window to allow downsizing
 	gtk_container_add(GTK_CONTAINER(state.mwindow), state.grid);
 	gtk_container_add(GTK_CONTAINER(state.window), state.mwindow);
@@ -201,6 +221,11 @@ int main(int argc, char *argv[]){
 	// int res = (rs->outputs[0] >> 8) ? rs->outputs[0] & 0xFF : 0;
 
 	// delete rs;
+}
+
+static void start_board_movement(State *state){
+	state->movement_frame = 0;
+	g_timeout_add(60, GSourceFunc(tick_board), state);
 }
 
 static gboolean on_bdraw_event(GtkWidget *, cairo_t *cr, State *state){
@@ -303,20 +328,25 @@ static gboolean on_sdraw_event(GtkWidget *, cairo_t *cr, State *state){
 
 static void on_resize_event(GtkWidget *window, State *state){
 	gtk_window_get_size(GTK_WINDOW(window), &state->width, &state->height);
-	gtk_widget_set_size_request(state->bwindow, state->width - 100, state->height - 25);
+	gtk_widget_set_size_request(state->bwindow, state->width - 100, state->height - 28);
 	gtk_widget_set_size_request(state->swindow, 100, state->height);
 
-	state->draw_area_width = std::max(state->width - 100, 10 + 48 * state->rs->bc->board->width);
-	state->draw_area_height = std::max(state->height - 25, 10 + 48 * state->rs->bc->board->height);
+	state->draw_area_width = std::max(state->width - 100, 10 + 48 * (state->rs->bc->board->width + 2));
+	state->draw_area_height = std::max(state->height - 28, 10 + 48 * (state->rs->bc->board->height + 1));
 	gtk_widget_set_size_request(state->draw_area, state->draw_area_width, state->draw_area_height);
 }
 
 static gboolean tick_board(State *state){
 	bool not_finished;
-
-	if(state->movement_frame == 5){
+	if(state->movement_frame == -1){
+		return false;
+	}else if(state->movement_frame == 5){
 		state->movement_frame = 0;
 		state->rs->moved_marbles.clear();
+		if(!state->autoplay){
+			state->movement_frame = -1;
+			return false;
+		}
 	}
 
 	if(state->movement_frame != 0){
@@ -393,4 +423,21 @@ static gboolean tick_board(State *state){
 	gtk_widget_queue_draw(state->draw_area);
 
 	return not_finished ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
+}
+
+static void play_toggle_clicked(GtkButton *button, State *state){
+	if(!state->autoplay){
+		state->autoplay = true;
+		start_board_movement(state);
+		gtk_button_set_label(button, "_Pause");
+	}else{
+		state->autoplay = false;
+		gtk_button_set_label(button, "_Play");
+	}
+}
+
+static void tick_once_clicked(GtkButton *button, State *state){
+	if(state->movement_frame == -1 && !state->autoplay){
+		start_board_movement(state);
+	}
 }
