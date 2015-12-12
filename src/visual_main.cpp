@@ -168,7 +168,7 @@ int main(int argc, char *argv[]){
 	gtk_widget_set_halign(state.stdout_label, GTK_ALIGN_START);
 	gtk_label_set_selectable(GTK_LABEL(state.stdout_label), true);
 	gtk_label_set_yalign(GTK_LABEL(state.stdout_label), 0.0);
-	gtk_label_set_markup(GTK_LABEL(state.stdout_label), "<span font='Courier New 12'><b>STDOUT: </b>\n</span>");
+	gtk_label_set_markup(GTK_LABEL(state.stdout_label), "<span font='Courier New 12'><b>STDOUT: </b>\n<span foreground='red'>_</span></span>");
 	gtk_container_add(GTK_CONTAINER(state.stdout_window), state.stdout_label);
 
 	state.play_toggle = gtk_button_new_with_mnemonic("_Play");
@@ -247,7 +247,7 @@ static void flush_stdout(State *state){
 	if(outv.size() > state->pstdout.length()){
 		for(int i = state->pstdout.length(), len = outv.size(); i < len; ++i)
 			state->pstdout += outv[i];
-		gtk_label_set_markup(GTK_LABEL(state->stdout_label), ("<span font='Courier New 12'><b>STDOUT: </b>\n" + state->pstdout + "</span>").c_str());
+		gtk_label_set_markup(GTK_LABEL(state->stdout_label), ("<span font='Courier New 12'><b>STDOUT: </b>\n" + state->pstdout + "<span foreground='red'>_</span></span>").c_str());
 		GtkAdjustment *adj = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(state->stdout_window));
 		gtk_adjustment_set_value(adj, gtk_adjustment_get_upper(adj));		
 	}
