@@ -32,7 +32,7 @@ struct State {
 	std::stack<BoardCall::RunState *> rs_stack;
 	cairo_surface_t *devices_surface, *printables_surface, *marble_surface, *cn16_surface;
 	GtkWidget *window, *mwindow, *grid, *lgrid, *bwindow, *swindow, *cgrid, *draw_area, *sdraw_area;
-	GtkWidget *play_toggle, *tick_once;
+	GtkWidget *play_toggle, *tick_once, *finish;
 	cairo_surface_t *swindow_surface;
 
 	int movement_frame; // 0 = ticking, 1+ = marbles are moving
@@ -47,6 +47,7 @@ static gboolean tick_board(State *);
 
 static void play_toggle_clicked(GtkButton *, State *);
 static void tick_once_clicked(GtkButton *, State *);
+static void finish_clicked(GtkButton *, State *);
 
 int main(int argc, char *argv[]){
 	// process arguments
@@ -161,6 +162,7 @@ int main(int argc, char *argv[]){
 
 	state.play_toggle = gtk_button_new_with_mnemonic("_Play");
 	state.tick_once = gtk_button_new_with_mnemonic("_Tick");
+	state.finish = gtk_button_new_with_mnemonic("_Finish");
 
 	// draw "MB" to swindow_surface...
 	cairo_t *tmp = cairo_create(state.swindow_surface);
@@ -169,6 +171,7 @@ int main(int argc, char *argv[]){
 
 	g_signal_connect(G_OBJECT(state.play_toggle), "clicked", G_CALLBACK(play_toggle_clicked), &state);
 	g_signal_connect(G_OBJECT(state.tick_once), "clicked", G_CALLBACK(tick_once_clicked), &state);
+	g_signal_connect(G_OBJECT(state.finish), "clicked", G_CALLBACK(finish_clicked), &state);
 	
 	g_signal_connect(G_OBJECT(state.draw_area), "draw", G_CALLBACK(on_bdraw_event), &state);
 	g_signal_connect(G_OBJECT(state.sdraw_area), "draw", G_CALLBACK(on_sdraw_event), &state);
@@ -176,7 +179,8 @@ int main(int argc, char *argv[]){
 	g_signal_connect(state.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
 	gtk_grid_attach(GTK_GRID(state.cgrid), state.play_toggle, 0, 0, 1, 1);
-	gtk_grid_attach(GTK_GRID(state.cgrid), state.tick_once, 1, 0, 2, 1);
+	gtk_grid_attach_next_to(GTK_GRID(state.cgrid), state.tick_once, state.play_toggle, GTK_POS_RIGHT, 1, 1);
+	gtk_grid_attach_next_to(GTK_GRID(state.cgrid), state.finish, state.tick_once, GTK_POS_RIGHT, 1, 1);
 
 	gtk_window_set_position(GTK_WINDOW(state.window), GTK_WIN_POS_CENTER);
 	gtk_window_set_default_size(GTK_WINDOW(state.window), 800, 600);
@@ -274,7 +278,7 @@ static gboolean on_bdraw_event(GtkWidget *, cairo_t *cr, State *state){
 	}
 
 	// marbles
-	if(state->movement_frame == 0 || state->movement_frame > 5){
+	if(state->movement_frame <= 0 || state->movement_frame > 5){
 		for(int y = 0; y < board->height; ++y){
 			for(int x = 0; x < board->width; ++x){
 				int index = board->index(x, y);
@@ -441,10 +445,22 @@ static void play_toggle_clicked(GtkButton *button, State *state){
 	}
 }
 
-static void tick_once_clicked(GtkButton *button, State *state){
+static void tick_once_clicked(GtkButton *, State *state){
 	if(state->movement_frame == -1 && !state->autoplay){
 		gtk_widget_set_sensitive(state->play_toggle, false);
 		gtk_widget_set_sensitive(state->tick_once, false);
 		start_board_movement(state);
+	}
+}
+
+static void finish_clicked(GtkButton *, State *state){
+	if(state->movement_frame == -1 && !state->autoplay){
+		// run to completion
+		while(state->rs->tick(false));
+
+		state->rs->finalize();
+
+		std::fflush(stdout);
+		gtk_widget_queue_draw(state->draw_area);
 	}
 }
