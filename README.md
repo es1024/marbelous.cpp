@@ -14,11 +14,11 @@ Marbelous was conceived in [Programming Puzzles & Code Golf's chat room (The Nin
 
 For more examples of Marbelous code, see the examples directory in the [Python interpreter repo](https://github.com/marbelous-lang/marbelous.py) (written by sparr), or head over to [Programming Puzzles & Code Golf Stack Exchange](http://codegolf.stackexchange.com) and search `Marbelous`.
 
-##### Compiling the Interpreter (command line)
+##### Compiling marbelous (interpreter)
 If you have `make` on your system, just run `make bin/marbelous`. Alternatively, you can just compile and link all the `.cpp` files in source (no external libraries are used for the interpreter). Note that this interpreter is written to C++11,  so you may need to pass a flag to your compiler to specify this (for gcc: `--std=c++11`).
 
-##### Compiling the Interpreter (GUI)
-The GUI version (which shows the marbles moving throughout the board: see below) requires GTK+ 3.0, FreeType 2, Pango, and Cairo.
+##### Compiling vmarbelous (debugger)
+The debugger (which shows the marbles moving throughout the board: see below) requires GTK+ 3.0, FreeType 2, Pango, and Cairo.
 
 Run `make bin/vmarbelous` to compile. Note that this interpreter is written to C++11,  so you may need to pass a flag to your compiler to specify this (for gcc: `--std=c++11`).
 
@@ -33,8 +33,8 @@ The C++ interpreter has the following options:
 
 Option | Description
 ------ | ---------------
-&#8209;&#8209;help | display help information
-&#8209;v[vv] | change verbosity level (default 0); add more v's to increase verbosity.
+&#8209;&#8209;help | Display help information
+&#8209;v[vv] | Change verbosity level (default 0); add more v's to increase verbosity. `marbelous` only.
 &#8209;&#8209;enable&#8209;cylindrical, &#8209;&#8209;disable&#8209;cylindrical | Enable or disable cylindrical boards (default disabled). If disabled, marbles falling off the side of the board are destroyed. If enabled, marbles falling off the side of the board reappear on the other side.
 
 ##### More information/Other interpreters
