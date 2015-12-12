@@ -26,7 +26,7 @@ If you are on Windows, I recommend using [MSYS](http://sourceforge.net/p/mingw-w
 
 vmarbelous printing an arch of ascending/descending numbers ([written by Sparr](http://codegolf.stackexchange.com/a/52073/29611)):
 
-![](http://i.stack.imgur.com/Jyibf.gif)
+![](http://i.imgur.com/8NTBl37.gif)
 
 ##### Interpreter Options
 The C++ interpreter has the following options:
