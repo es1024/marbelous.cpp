@@ -274,7 +274,7 @@ static gboolean on_bdraw_event(GtkWidget *, cairo_t *cr, State *state){
 	}
 
 	// marbles
-	if(state->movement_frame == 0){
+	if(state->movement_frame == 0 || state->movement_frame > 5){
 		for(int y = 0; y < board->height; ++y){
 			for(int x = 0; x < board->width; ++x){
 				int index = board->index(x, y);
@@ -340,7 +340,7 @@ static gboolean tick_board(State *state){
 	bool not_finished;
 	if(state->movement_frame == -1){
 		return false;
-	}else if(state->movement_frame == 5){
+	}else if(state->movement_frame == 5 || state->movement_frame == 10){
 		state->movement_frame = 0;
 		state->rs->moved_marbles.clear();
 		if(!state->autoplay){
@@ -390,6 +390,8 @@ static gboolean tick_board(State *state){
 
 			not_finished = false;
 		}else{
+			state->movement_frame = 6;
+	
 			cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state->swindow_height - 18);
 			cairo_t *tmp = cairo_create(surf);
 			cairo_surface_t *ssurf = cairo_surface_create_for_rectangle(state->swindow_surface, 0, 18, 90, state->swindow_height);
