@@ -466,9 +466,12 @@ static void finish_clicked(GtkButton *, State *state){
 			state->rs->processed_board_calls.push_back(rs);
 			state->rs->prepared_board_calls.erase(state->rs->prepared_board_calls.begin());
 		}
-		if(state->rs->tick(true))
+		if(state->rs->processed_board_calls.size() > 0){
+			if(state->rs->tick(true))
+				while(state->rs->tick(false));
+		}else{
 			while(state->rs->tick(false));
-
+		}
 		state->rs->finalize();
 
 		std::fflush(stdout);
