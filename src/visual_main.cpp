@@ -40,6 +40,7 @@ struct State {
 };
 
 static void start_board_movement(State *);
+static void stop_board_movement(State *);
 static gboolean on_bdraw_event(GtkWidget *, cairo_t *, State *);
 static gboolean on_sdraw_event(GtkWidget *, cairo_t *, State *);
 static void on_resize_event(GtkWidget *, State *);
@@ -232,6 +233,14 @@ static void start_board_movement(State *state){
 	g_timeout_add(60, GSourceFunc(tick_board), state);
 }
 
+static void stop_board_movement(State *state){
+	state->movement_frame = -1;
+	gtk_widget_set_sensitive(state->play_toggle, true);
+	gtk_widget_set_sensitive(state->tick_once, true);
+	gtk_widget_set_sensitive(state->finish, true);
+	gtk_button_set_label(GTK_BUTTON(state->play_toggle), "_Play");
+}
+
 static gboolean on_bdraw_event(GtkWidget *, cairo_t *cr, State *state){
 	const Board *board = state->rs->bc->board;
 	int w = board->width * 48, h = board->height * 48;
@@ -348,9 +357,7 @@ static gboolean tick_board(State *state){
 		state->movement_frame = 0;
 		state->rs->moved_marbles.clear();
 		if(!state->autoplay){
-			state->movement_frame = -1;
-			gtk_widget_set_sensitive(state->play_toggle, true);
-			gtk_widget_set_sensitive(state->tick_once, true);
+			stop_board_movement(state);
 			return false;
 		}
 	}
@@ -382,18 +389,6 @@ static gboolean tick_board(State *state){
 	}else if(state->rs->is_finished()){
 		state->rs->finalize();
 		if(state->rs_stack.size() == 0){
-			cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 90, state->swindow_height - 16);
-			cairo_t *tmp = cairo_create(surf);
-			cairo_surface_t *ssurf = cairo_surface_create_for_rectangle(state->swindow_surface, 0, 16, 90, state->swindow_height);
-			cairo_set_source_surface(tmp, ssurf, 0, 0);
-			cairo_paint(tmp);
-			cairo_surface_destroy(ssurf);
-			cairo_destroy(tmp);
-			cairo_surface_destroy(state->swindow_surface);
-			state->swindow_surface = surf;
-			state->swindow_height -= 16;
-			gtk_widget_queue_draw(state->sdraw_area);
-
 			not_finished = false;
 		}else{
 			state->movement_frame = 6;
@@ -430,6 +425,9 @@ static gboolean tick_board(State *state){
 	std::fflush(stdout);
 	gtk_widget_queue_draw(state->draw_area);
 
+	if(!not_finished)
+		stop_board_movement(state);
+
 	return not_finished ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
 }
 
@@ -437,6 +435,7 @@ static void play_toggle_clicked(GtkButton *button, State *state){
 	if(!state->autoplay){
 		state->autoplay = true;
 		gtk_widget_set_sensitive(state->tick_once, false);
+		gtk_widget_set_sensitive(state->finish, false);
 		gtk_button_set_label(button, "_Pause");
 		start_board_movement(state);
 	}else{
@@ -449,6 +448,7 @@ static void tick_once_clicked(GtkButton *, State *state){
 	if(state->movement_frame == -1 && !state->autoplay){
 		gtk_widget_set_sensitive(state->play_toggle, false);
 		gtk_widget_set_sensitive(state->tick_once, false);
+		gtk_widget_set_sensitive(state->finish, false);
 		start_board_movement(state);
 	}
 }
