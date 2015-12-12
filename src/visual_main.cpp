@@ -345,6 +345,8 @@ static gboolean tick_board(State *state){
 		state->rs->moved_marbles.clear();
 		if(!state->autoplay){
 			state->movement_frame = -1;
+			gtk_widget_set_sensitive(state->play_toggle, true);
+			gtk_widget_set_sensitive(state->tick_once, true);
 			return false;
 		}
 	}
@@ -430,8 +432,9 @@ static gboolean tick_board(State *state){
 static void play_toggle_clicked(GtkButton *button, State *state){
 	if(!state->autoplay){
 		state->autoplay = true;
-		start_board_movement(state);
+		gtk_widget_set_sensitive(state->tick_once, false);
 		gtk_button_set_label(button, "_Pause");
+		start_board_movement(state);
 	}else{
 		state->autoplay = false;
 		gtk_button_set_label(button, "_Play");
@@ -440,6 +443,8 @@ static void play_toggle_clicked(GtkButton *button, State *state){
 
 static void tick_once_clicked(GtkButton *button, State *state){
 	if(state->movement_frame == -1 && !state->autoplay){
+		gtk_widget_set_sensitive(state->play_toggle, false);
+		gtk_widget_set_sensitive(state->tick_once, false);
 		start_board_movement(state);
 	}
 }
