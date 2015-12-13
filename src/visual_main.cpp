@@ -252,10 +252,18 @@ static void flush_stdout(State *state){
 	const auto &outv = stdout_get_saved();
 	if(outv.size() > state->pstdout.length()){
 		for(int i = state->pstdout.length(), len = outv.size(); i < len; ++i)
-			state->pstdout += outv[i];
-		gtk_label_set_markup(GTK_LABEL(state->stdout_label), ("<span font='Courier New 12'><b>STDOUT: </b>\n" + state->pstdout + "<span foreground='red'>_</span></span>").c_str());
+			if(outv[i] == 0 || outv[i] > 0x7F)
+				state->pstdout += 0x01; // gtk errors if extended ascii + null byte issues
+			else
+				state->pstdout += outv[i];
+		char *out = g_markup_printf_escaped("<span font='Courier New 12'><b>STDOUT: </b>\n"
+			"%s<span foreground='red'>_</span></span>", state->pstdout.c_str());
+
+		gtk_label_set_markup(GTK_LABEL(state->stdout_label), out);
 		GtkAdjustment *adj = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(state->stdout_window));
-		gtk_adjustment_set_value(adj, gtk_adjustment_get_upper(adj));		
+		gtk_adjustment_set_value(adj, gtk_adjustment_get_upper(adj));
+
+		g_free(out);
 	}
 }
 
