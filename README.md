@@ -26,7 +26,7 @@ If you are on Windows, I recommend using [MSYS](http://sourceforge.net/p/mingw-w
 
 vmarbelous printing an arch of ascending/descending numbers ([written by Sparr](http://codegolf.stackexchange.com/a/52073/29611)):
 
-![](http://i.imgur.com/8NTBl37.gif)
+![](http://i.imgur.com/aBZWgEm.gif)
 
 ##### Interpreter Options
 The C++ interpreter has the following options:
@@ -34,7 +34,7 @@ The C++ interpreter has the following options:
 Option | Description
 ------ | ---------------
 &#8209;&#8209;help | Display help information
-&#8209;v[vv] | Change verbosity level (default 0); add more v's to increase verbosity. `marbelous` only.
+&#8209;v[vv] | Change verbosity level (default 0); add more v's to increase verbosity. Interpreter only.
 &#8209;&#8209;enable&#8209;cylindrical, &#8209;&#8209;disable&#8209;cylindrical | Enable or disable cylindrical boards (default disabled). If disabled, marbles falling off the side of the board are destroyed. If enabled, marbles falling off the side of the board reappear on the other side.
 
 ##### More information/Other interpreters
