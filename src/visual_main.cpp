@@ -42,7 +42,118 @@ struct State {
 
 	int movement_frame; // 0 = ticking, 1+ = marbles are moving
 	bool autoplay;
+
+	// settings
+	bool edit_in_hex;
 };
+
+// callbacks used by prompt_marble_value
+static gboolean marble_edit_changed(GtkWidget *, GdkEvent *, std::tuple<State *, GtkWidget *, int> *info){
+	State *state = std::get<0>(*info);
+	GtkWidget *text_area = std::get<1>(*info);
+	const gchar *text = gtk_entry_get_text(GTK_ENTRY(text_area));
+
+	// read char by char to handle overflow appropriately
+	int value = 0;
+	while(*text){
+		char c = *text;
+		if(state->edit_in_hex){
+			if('0' <= c && c <= '9')
+				value = (value * 16 + (c - '0')) % 256;
+			else if('A' <= c && c <= 'F')
+				value = (value * 16 + (c - 'A' + 10)) % 256;
+			else if('a' <= c && c <= 'f')
+				value = (value * 16 + (c - 'a' + 10)) % 256;
+			else break;
+		}else{
+			if(std::isdigit(c))
+				value = (value * 10 + (c - '0')) % 256;
+			else break;
+		}
+		++text;
+	}
+
+	// update display with input mod 256
+	std::ostringstream ss;
+	if(state->edit_in_hex)
+		ss << std::hex;
+	ss << value;
+	gtk_entry_set_text(GTK_ENTRY(text_area), ss.str().c_str());
+
+	// set value
+	std::get<2>(*info) = value;
+
+	return FALSE;
+}
+static void marble_edit_hex_changed(GtkToggleButton *, std::tuple<State *, GtkWidget *, int> *info){
+	State *state = std::get<0>(*info);
+	GtkWidget *text_area = std::get<1>(*info);
+	const gchar *text = gtk_entry_get_text(GTK_ENTRY(text_area));
+
+	// convert to hex/decimal
+	int value = std::stoi(text, nullptr, (state->edit_in_hex ? 16 : 10));
+
+	std::string out;
+	if(!state->edit_in_hex){
+		std::stringstream ss;
+		ss << std::hex << value;
+		out = ss.str();
+	}else{
+		out = std::to_string(value);
+	}
+
+	gtk_entry_set_text(GTK_ENTRY(text_area), out.c_str());
+
+	// toggle
+	state->edit_in_hex = !state->edit_in_hex;
+}
+
+static int prompt_marble_value(State *state, const char *title, int default_value = 0){
+	GtkWidget *dialog, *carea, *varea, *text_area_label, *text_area, *hex_box;
+	std::string default_text = "";
+
+	{
+		std::ostringstream ss;
+		if(state->edit_in_hex)
+			ss << std::hex;
+		ss << default_value;
+
+		default_text = ss.str();
+	}
+
+	dialog = gtk_dialog_new_with_buttons(title, GTK_WINDOW(state->window), GTK_DIALOG_DESTROY_WITH_PARENT, "_Cancel", GTK_RESPONSE_NONE, "_OK", GTK_RESPONSE_ACCEPT, NULL);
+	carea = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+
+	// Marble value area
+	text_area_label = gtk_label_new("Marble Value: ");
+	text_area = gtk_entry_new();
+	gtk_entry_set_text(GTK_ENTRY(text_area), default_text.c_str());
+
+	varea = gtk_grid_new();
+	gtk_grid_attach(GTK_GRID(varea), text_area_label, 0, 0, 1, 1);
+	gtk_grid_attach_next_to(GTK_GRID(varea), text_area, text_area_label, GTK_POS_RIGHT, 1, 1);
+
+	// Hex vs decimal area
+	hex_box = gtk_check_button_new_with_label("Hexadecimal");
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hex_box), state->edit_in_hex);
+
+	gtk_box_pack_start(GTK_BOX(carea), varea, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(carea), hex_box, TRUE, TRUE, 0);
+
+	// signals
+	std::tuple<State *, GtkWidget *, int> info{state, text_area, default_value};
+	g_signal_connect(G_OBJECT(text_area), "focus-out-event", G_CALLBACK(marble_edit_changed), &info);
+	g_signal_connect(G_OBJECT(hex_box), "toggled", G_CALLBACK(marble_edit_hex_changed), &info);
+
+	gtk_widget_show_all(dialog);
+	gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_hide(dialog);
+	gtk_widget_destroy(dialog);
+
+	if(res == GTK_RESPONSE_ACCEPT)
+		return std::get<2>(info);
+	else return -1;
+}
 
 static void start_board_movement(State *);
 static void stop_board_movement(State *);
@@ -52,6 +163,7 @@ static gboolean on_sdraw_event(GtkWidget *, cairo_t *, State *);
 static void on_resize_event(GtkWidget *, State *);
 static gboolean tick_board(State *);
 static gboolean stack_clicked(GtkWidget *, GdkEvent *, State *);
+static gboolean board_double_clicked(GtkWidget *, GdkEvent *event, State *state);
 static void play_toggle_clicked(GtkButton *, State *);
 static void tick_once_clicked(GtkButton *, State *);
 static void finish_clicked(GtkButton *, State *);
@@ -167,6 +279,7 @@ int main(int argc, char *argv[]){
 	state.active_frame = 0;
 	state.movement_frame = -1;
 	state.autoplay = false;
+	state.edit_in_hex = true;
 
 	gtk_widget_set_size_request(state.stdout_window, 700, 48);
 	gtk_widget_set_halign(state.stdout_label, GTK_ALIGN_START);
@@ -189,6 +302,8 @@ int main(int argc, char *argv[]){
 	g_signal_connect(G_OBJECT(state.finish), "clicked", G_CALLBACK(finish_clicked), &state);
 	gtk_widget_add_events(state.sdraw_area, GDK_BUTTON_PRESS_MASK);
 	g_signal_connect(G_OBJECT(state.sdraw_area), "button-press-event", G_CALLBACK(stack_clicked), &state);
+	gtk_widget_add_events(state.draw_area, GDK_BUTTON_PRESS_MASK);
+	g_signal_connect(G_OBJECT(state.draw_area), "button-press-event", G_CALLBACK(board_double_clicked), &state);
 	
 	g_signal_connect(G_OBJECT(state.draw_area), "draw", G_CALLBACK(on_bdraw_event), &state);
 	g_signal_connect(G_OBJECT(state.sdraw_area), "draw", G_CALLBACK(on_sdraw_event), &state);
@@ -217,10 +332,10 @@ int main(int argc, char *argv[]){
 	gtk_container_add(GTK_CONTAINER(state.window), state.mwindow);
 
 	gtk_widget_show_all(state.window);
-
 	gtk_main();
 
 	// cleanup
+
 	delete state.rs;
 	cairo_surface_destroy(state.marble_surface);
 	cairo_surface_destroy(state.printables_surface);
@@ -525,5 +640,38 @@ static gboolean stack_clicked(GtkWidget *, GdkEvent *event, State *state){
 		gtk_widget_queue_draw(state->sdraw_area);
 		gtk_widget_queue_draw(state->draw_area);
 	}
+	return false;
+}
+
+static gboolean board_double_clicked(GtkWidget *, GdkEvent *event, State *state){
+	if(event->type == GDK_2BUTTON_PRESS){
+		if(state->movement_frame == -1 && !state->autoplay){
+			const Board *board = state->rs->bc->board;
+			// determine board x/y
+			double mx = ((GdkEventButton*)event)->x, my = ((GdkEventButton*)event)->y;
+			// board 0,0 top left coordinate location
+			int w = board->width * 48, h = board->height * 48;
+			int offx = (state->draw_area_width - w)/2, offy = (state->draw_area_height - h)/2;
+
+			int bx = (mx - offx) / 48, by = (my - offy) / 48;
+			if(bx >= 0 && bx < board->width && by >= 0 && by < board->height){
+				// valid tile
+				int index = board->index(bx, by);
+				uint16_t &value = state->rs->cur_marbles[index];
+				if(value & 0xFF00){
+					// marble already present
+					int tmp = prompt_marble_value(state, "Edit Marble", value & 0x00FF);
+					if(tmp >= 0)
+						value = 0xFF00 | tmp;
+				}else{
+					// new marble
+					int tmp = prompt_marble_value(state, "New Marble");
+					if(tmp >= 0)
+						value = 0xFF00 | tmp;
+				}
+			}
+		}
+	}
+
 	return false;
 }
