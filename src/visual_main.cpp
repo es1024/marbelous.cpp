@@ -624,21 +624,23 @@ static void finish_clicked(GtkButton *, State *state){
 }
 
 static gboolean stack_clicked(GtkWidget *, GdkEvent *event, State *state){
-	double y = ((GdkEventButton*)event)->y;
-	// convert to stack index if applicable
-	y -= 5; // top margin = 5px
-	unsigned index = ((int)y / 18);
-	if(index < state->rs_stack.size()){
-		state->active_frame = -index;
-		state->rs = state->rs_stack[-state->active_frame];
-		gtk_widget_queue_draw(state->sdraw_area);
-		gtk_widget_queue_draw(state->draw_area);
+	if(event->type == GDK_BUTTON_PRESS && event->button.button == 1){
+		double y = ((GdkEventButton*)event)->y;
+		// convert to stack index if applicable
+		y -= 5; // top margin = 5px
+		unsigned index = ((int)y / 18);
+		if(index < state->rs_stack.size()){
+			state->active_frame = -index;
+			state->rs = state->rs_stack[-state->active_frame];
+			gtk_widget_queue_draw(state->sdraw_area);
+			gtk_widget_queue_draw(state->draw_area);
+		}
 	}
 	return false;
 }
 
 static gboolean board_double_clicked(GtkWidget *, GdkEvent *event, State *state){
-	if(event->type == GDK_2BUTTON_PRESS){
+	if(event->type == GDK_2BUTTON_PRESS && event->button.button == 1){
 		if(state->movement_frame == -1 && !state->autoplay){
 			const Board *board = state->rs->bc->board;
 			// determine board x/y
