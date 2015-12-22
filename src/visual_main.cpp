@@ -335,19 +335,13 @@ int main(int argc, char *argv[]){
 	gtk_main();
 
 	// cleanup
-
+	int res = (state.rs->outputs[0] >> 8) ? state.rs -> outputs[0] & 0xFF : 0;
 	delete state.rs;
 	cairo_surface_destroy(state.marble_surface);
 	cairo_surface_destroy(state.printables_surface);
 	cairo_surface_destroy(state.devices_surface);
 
-	return 0;
-
-	// BoardCall::RunState *rs = bc.call(inputs);
-
-	// int res = (rs->outputs[0] >> 8) ? rs->outputs[0] & 0xFF : 0;
-
-	// delete rs;
+	return res;
 }
 
 static void start_board_movement(State *state){
